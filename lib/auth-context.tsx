@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react"
 import type { UserLocal } from "./types/frontend-types"
-import { authenticateUser, getCurrentUser } from "./api-client"
+import { authenticateUser, getCurrentUser, apiEndpoint } from "./api-client"
 
 interface AuthContextValue {
   user: UserLocal | null
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(async () => {
-    await fetch("/api/logout", { method: "POST", credentials: "include", body: JSON.stringify({}) })
+    await fetch(apiEndpoint("/api/logout"), { method: "POST", credentials: "include", body: JSON.stringify({}) })
     setUser(null)
   }, [])
 

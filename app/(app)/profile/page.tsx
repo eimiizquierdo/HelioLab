@@ -17,8 +17,5 @@ export default async function ProfilePage() {
   const { hashed_password, ...userLocal } = userDoc.data()!
   const currentUser = { id: userDoc.id, ...userLocal } as UserLocal
 
-  console.log("El usuario es");
-  console.log(currentUser);
-
   return <ProfileForm currentUser={currentUser} />
 }

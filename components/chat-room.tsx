@@ -6,6 +6,7 @@ import {
   getFollowedChats,
   followChat,
   unfollowChat,
+  apiEndpoint,
 } from "@/lib/api-client"
 import type { UserLocal } from "@/lib/types/frontend-types"
 import type { ChatAsMessage } from "@/lib/types/frontend-types"
@@ -55,7 +56,7 @@ async function fetchMessages(
   researcherId: string,
   limitDate?: string,
 ): Promise<ChatAsMessage[]> {
-  const res = await fetch(`/api/chat/${chatId}/get_messages`, {
+  const res = await fetch(apiEndpoint(`/api/chat/${chatId}/get_messages`), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },

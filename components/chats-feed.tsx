@@ -20,15 +20,10 @@ const DAY_NAMES: Record<number, string> = {
 
 export function ChatsFeed({ chats }: ChatsFeedProps) {
   const grouped = useMemo(() => {
-    const sorted = [...chats].sort(
-      (a, b) =>
-        new Date(a.creation_date).getTime() -
-        new Date(b.creation_date).getTime()
-    )
 
     const groups = new Map<string, ChatAsPost[]>()
 
-    for (const chat of sorted) {
+    for (const chat of chats) {
       const dayKey = new Date(chat.creation_date).toISOString().split("T")[0]
       if (!groups.has(dayKey)) groups.set(dayKey, [])
       groups.get(dayKey)!.push(chat)

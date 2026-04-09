@@ -56,8 +56,8 @@ export function ConnectionsPanel() {
     const conn = await addConnection({
       owner: user.id,
       name: name.trim(),
-      url: url.trim(),
-      icon: "link",
+      link: url.trim(),
+      icon: ""
     })
     setConnections((prev) => [...prev, conn])
     setName("")
@@ -90,7 +90,7 @@ export function ConnectionsPanel() {
                 <X className="size-3" />
               </button>
               <a
-                href={conn.url}
+                href={conn.link}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-2"

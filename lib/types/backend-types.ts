@@ -110,5 +110,6 @@ export interface Connection {
     id: Id;
     owner: Reference;
     link: string;
-    type: string;
+    icon: string;
+    name: string;
 }

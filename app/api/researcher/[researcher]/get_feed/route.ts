@@ -109,7 +109,7 @@ export async function POST(
 
   const sortedChats = chatAsPostList.sort(
     (a, b) =>
-      new Date(a.creation_date).getTime() - new Date(b.creation_date).getTime()
+      new Date(b.creation_date).getTime() - new Date(a.creation_date).getTime()
   );
 
   return NextResponse.json({ chats: sortedChats }, { status: 200 });

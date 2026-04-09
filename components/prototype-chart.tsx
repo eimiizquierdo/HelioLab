@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useCallback, useEffect, useImperativeHandle, forwardRef } from "react"
+import { useMemo, useRef, useCallback, useEffect, useImperativeHandle, forwardRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import {
   LineChart,
@@ -14,6 +14,9 @@ import {
 import type { Reading } from "@/lib/types/backend-types"
 import type { ChatAsHighlight } from "@/lib/types/frontend-types"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@/components/ui/button"
+import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react"
 
 export interface SelectionRange {
   startDate: Date
@@ -29,6 +32,7 @@ interface PrototypeChartProps {
   readings: Reading[]
   highlights: ChatAsHighlight[]
   onSelectionComplete?: (range: SelectionRange) => void
+  onTimeWindowChange?: (timeWindow: { start: Date; end: Date }) => void
 }
 
 function formatTime(date: Date) {
@@ -39,12 +43,30 @@ function formatTime(date: Date) {
   return `${h.toString().padStart(2, "0")}:${minutes} ${period}`
 }
 
+function formatTooltipLabel(value: number | string) {
+  return new Date(Number(value)).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function formatValueWithSuffix(value: number, suffix: string) {
+  return `${value.toFixed(4)}${suffix}`
+}
+
+const POWER_LINE_COLOR = "var(--color-chart-1)"
+const IRRADIANCE_LINE_COLOR = "var(--color-chart-2)"
+const POWER_SUFFIX = " W"
+const IRRADIANCE_SUFFIX = " W/m²"
 const CHART_MARGIN = { top: 5, right: 20, bottom: 5, left: 0 }
 const WINDOW_HOURS = 2
 
 export const PrototypeChart = forwardRef<PrototypeChartHandle, PrototypeChartProps>(
-  function PrototypeChart({ prototypeName, readings, highlights, onSelectionComplete }, ref) {
+  function PrototypeChart({ prototypeName, readings, highlights, onSelectionComplete, onTimeWindowChange }, ref) {
     const router = useRouter()
+    const [showPower, setShowPower] = useState(true)
+    const [showIrradiance, setShowIrradiance] = useState(true)
+    const [timeWindow, setTimeWindow] = useState<{ start: Date; end: Date } | null>(null)
 
     const containerRef = useRef<HTMLDivElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -62,20 +84,79 @@ export const PrototypeChart = forwardRef<PrototypeChartHandle, PrototypeChartPro
     const highlightRectsRef = useRef<{ x1: number; x2: number; chatId: string }[]>([])
 
     const chartData = useMemo(() => {
-      return readings.map((r) => ({
+      const allData = readings.map((r) => ({
         time: new Date(r.date).getTime(),
         timeLabel: formatTime(r.date),
         date: r.date instanceof Date ? r.date : new Date(r.date),
-        voltage: Math.round(r.voltage * 10) / 10,
+        power: Number((r.voltage * r.current).toFixed(4)),
+        irradiance: Number(r.irradiance.toFixed(4)),
       }))
-    }, [readings])
 
+      if (!timeWindow) return allData
+
+      return allData.filter((d) => d.date >= timeWindow.start && d.date <= timeWindow.end)
+    }, [readings, timeWindow])
+    // Initialize time window when readings change
+    useEffect(() => {
+      if (chartData.length > 0) {
+        const latestTime = chartData[chartData.length - 1].date
+        const startTime = new Date(latestTime.getTime() - WINDOW_HOURS * 60 * 60 * 1000)
+        const newTimeWindow = { start: startTime, end: latestTime }
+        setTimeWindow(newTimeWindow)
+        onTimeWindowChange?.(newTimeWindow)
+      }
+    }, [chartData, onTimeWindowChange])
   const timeLabelToDate = useMemo(() => {
     const map = new Map<string, Date>()
     chartData.forEach((d) => map.set(String(d.time), d.date))
     return map
   }, [chartData])
+    // Time navigation functions
+    const zoomIn = useCallback(() => {
+      if (!timeWindow) return
+      const duration = timeWindow.end.getTime() - timeWindow.start.getTime()
+      const newDuration = duration * 0.8 // Zoom in by 20%
+      const center = (timeWindow.start.getTime() + timeWindow.end.getTime()) / 2
+      const newStart = new Date(center - newDuration / 2)
+      const newEnd = new Date(center + newDuration / 2)
+      const newTimeWindow = { start: newStart, end: newEnd }
+      setTimeWindow(newTimeWindow)
+      onTimeWindowChange?.(newTimeWindow)
+    }, [timeWindow, onTimeWindowChange])
 
+    const zoomOut = useCallback(() => {
+      if (!timeWindow) return
+      const duration = timeWindow.end.getTime() - timeWindow.start.getTime()
+      const newDuration = duration * 1.25 // Zoom out by 25%
+      const center = (timeWindow.start.getTime() + timeWindow.end.getTime()) / 2
+      const newStart = new Date(center - newDuration / 2)
+      const newEnd = new Date(center + newDuration / 2)
+      const newTimeWindow = { start: newStart, end: newEnd }
+      setTimeWindow(newTimeWindow)
+      onTimeWindowChange?.(newTimeWindow)
+    }, [timeWindow, onTimeWindowChange])
+
+    const scrollLeft = useCallback(() => {
+      if (!timeWindow) return
+      const duration = timeWindow.end.getTime() - timeWindow.start.getTime()
+      const shift = duration * 0.2 // Scroll by 20% of window
+      const newStart = new Date(timeWindow.start.getTime() - shift)
+      const newEnd = new Date(timeWindow.end.getTime() - shift)
+      const newTimeWindow = { start: newStart, end: newEnd }
+      setTimeWindow(newTimeWindow)
+      onTimeWindowChange?.(newTimeWindow)
+    }, [timeWindow, onTimeWindowChange])
+
+    const scrollRight = useCallback(() => {
+      if (!timeWindow) return
+      const duration = timeWindow.end.getTime() - timeWindow.start.getTime()
+      const shift = duration * 0.2 // Scroll by 20% of window
+      const newStart = new Date(timeWindow.start.getTime() + shift)
+      const newEnd = new Date(timeWindow.end.getTime() + shift)
+      const newTimeWindow = { start: newStart, end: newEnd }
+      setTimeWindow(newTimeWindow)
+      onTimeWindowChange?.(newTimeWindow)
+    }, [timeWindow, onTimeWindowChange])
     const avatarPositions = useMemo(() => {
       if (!chartData.length) return []
       const minTime = chartData[0].time
@@ -308,15 +389,87 @@ export const PrototypeChart = forwardRef<PrototypeChartHandle, PrototypeChartPro
     return (
       <div className="flex flex-col gap-2">
         <div className="rounded-lg border border-border bg-card p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-card-foreground">
-              {prototypeName}
-            </h2>
-            {chartData.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                Haz clic y arrastra para comentar
-              </span>
-            )}
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-card-foreground">
+                  {prototypeName}
+                </h2>
+                {chartData.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    Haz clic y arrastra para comentar
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-4 text-sm">
+                <label className="inline-flex items-center gap-2">
+                  <Checkbox
+                    checked={showPower}
+                    onCheckedChange={(checked) => setShowPower(Boolean(checked))}
+                    style={{ borderColor: POWER_LINE_COLOR, color: POWER_LINE_COLOR }}
+                  />
+                  <span className="inline-flex items-center gap-2" style={{ color: POWER_LINE_COLOR }}>
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: POWER_LINE_COLOR }}
+                    />
+                    Mostrar potencia
+                  </span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <Checkbox
+                    checked={showIrradiance}
+                    onCheckedChange={(checked) => setShowIrradiance(Boolean(checked))}
+                    style={{ borderColor: IRRADIANCE_LINE_COLOR, color: IRRADIANCE_LINE_COLOR }}
+                  />
+                  <span className="inline-flex items-center gap-2" style={{ color: IRRADIANCE_LINE_COLOR }}>
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: IRRADIANCE_LINE_COLOR }}
+                    />
+                    Mostrar irradiancia
+                  </span>
+                </label>
+                {timeWindow && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={zoomIn}
+                      className="h-8 w-8 p-0"
+                      title="Acercar"
+                    >
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={zoomOut}
+                      className="h-8 w-8 p-0"
+                      title="Alejar"
+                    >
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={scrollLeft}
+                      className="h-8 w-8 p-0"
+                      title="Desplazar izquierda"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={scrollRight}
+                      className="h-8 w-8 p-0"
+                      title="Desplazar derecha"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
           </div>
 
           <div
@@ -371,15 +524,35 @@ export const PrototypeChart = forwardRef<PrototypeChartHandle, PrototypeChartPro
                       fontSize: 12,
                     }}
                     labelStyle={{ color: "var(--color-card-foreground)" }}
+                    labelFormatter={(label) => formatTooltipLabel(label)}
+                    formatter={(value, name) => {
+                      const numericValue = Number(value)
+                      const suffix = name === "Potencia" ? POWER_SUFFIX : IRRADIANCE_SUFFIX
+                      return [formatValueWithSuffix(numericValue, suffix), name]
+                    }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="voltage"
-                    stroke="var(--color-chart-1)"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, fill: "var(--color-chart-1)" }}
-                  />
+                  {showPower && (
+                    <Line
+                      type="monotone"
+                      dataKey="power"
+                      stroke={POWER_LINE_COLOR}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4, fill: POWER_LINE_COLOR }}
+                      name="Potencia"
+                    />
+                  )}
+                  {showIrradiance && (
+                    <Line
+                      type="monotone"
+                      dataKey="irradiance"
+                      stroke={IRRADIANCE_LINE_COLOR}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 4, fill: IRRADIANCE_LINE_COLOR }}
+                      name="Irradiancia"
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             )}
