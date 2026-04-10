@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
-import { getConnections, addConnection, removeConnection } from "@/lib/api-client"
+import { getConnections, addConnection, removeConnection } from "@/lib/client-api"
 import type { Connection } from "@/lib/types/backend-types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

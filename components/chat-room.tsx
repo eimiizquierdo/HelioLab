@@ -7,7 +7,7 @@ import {
   followChat,
   unfollowChat,
   apiEndpoint,
-} from "@/lib/api-client"
+} from "@/lib/client-api"
 import type { UserLocal } from "@/lib/types/frontend-types"
 import type { ChatAsMessage } from "@/lib/types/frontend-types"
 import type { FollowedChat } from "@/lib/types/backend-types"

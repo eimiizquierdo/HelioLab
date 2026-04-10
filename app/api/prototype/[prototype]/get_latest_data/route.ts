@@ -1,44 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as admin from "firebase-admin";
-import { db } from "@/lib/firebase-admin";
+import { getPrototypeData } from "@/lib/prototype-data";
 
-// POST /api/prototype/[prototype]/get_latest_data
+// POST /prototype/[prototype]/get_latest_data
 export async function POST(
   req: NextRequest,
-  { params }: { params: { prototype: string } }
-) {
-  
-  const { prototype } = await params;
-  const { latest_date } = await req.json();
+  { params }: { params: { prototype: string } },
+): Promise<NextResponse> {
+  try {
+    const { prototype: prototypeId } = params;
+    const body = await req.json().catch(() => ({}));
+    const { start_date, end_date } = body;
 
-  const prototypeRef = db.collection("Prototype").doc(prototype);
-  const protoSnap = await prototypeRef.get();
-  if (!protoSnap.exists) {
-    return NextResponse.json({ error: "Prototype not found" }, { status: 404 });
-  }
+    // end_date requires start_date
+    if (end_date != null && start_date == null) {
+      return NextResponse.json(
+        { error: "start_date is required when end_date is provided." },
+        { status: 400 },
+      );
+    }
 
-  let startTs: admin.firestore.Timestamp;
-  if (latest_date) {
-    // Return readings newer than the client's last known date
-    startTs = admin.firestore.Timestamp.fromDate(new Date(latest_date));
-  } else {
-    // Default: last 24 hours
-    startTs = admin.firestore.Timestamp.fromDate(
-      new Date(Date.now() - 24 * 60 * 60 * 1000)
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+
+    if (start_date != null) {
+      startDate = new Date(start_date);
+      if (isNaN(startDate.getTime())) {
+        return NextResponse.json(
+          { error: "Invalid start_date format. Expected ISO 8601 string." },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (end_date != null) {
+      endDate = new Date(end_date);
+      if (isNaN(endDate.getTime())) {
+        return NextResponse.json(
+          { error: "Invalid end_date format. Expected ISO 8601 string." },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Default window: last 6 hours
+    if (startDate == null) {
+      endDate = new Date();
+      startDate = new Date(endDate.getTime() - 6 * 60 * 60 * 1000);
+    }
+
+    // start_date present but end_date omitted → use now as upper bound
+    if (endDate == null) {
+      endDate = new Date();
+    }
+
+    const prototypeData = await getPrototypeData(prototypeId, startDate, endDate);
+
+    return NextResponse.json(prototypeData, { status: 200 });
+  } catch (error) {
+    console.error("[get_latest_data]", error);
+    return NextResponse.json(
+      { error: "Internal server error." },
+      { status: 500 },
     );
   }
-
-  const snapshot = await prototypeRef
-    .collection("Reading")
-    .where("date", ">=", startTs)
-    .orderBy("date", "asc")
-    .get();
-
-  const readings = snapshot.docs.map((d) => ({ 
-    id: d.id, 
-    ...d.data(), 
-    date: d.data().date.toDate() 
-  }));
-
-  return NextResponse.json({ readings }, { status: 200 });
 }

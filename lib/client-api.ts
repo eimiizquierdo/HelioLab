@@ -1,10 +1,15 @@
 /**
- * CONSIDERATIONS
+ * CLIENT API
+ * Version: 2 (2026.04.08)
  * 
+ * ::Description::
+ * This file contains functions that the frontend uses to communicate
+ * with the backend
+ * 
+ * ::Considerations::
  * All functions must take in as a parameter an object called `parameters`,
  * which shall include the minimum number of parameters to make the
  * corresponding request to the API endpoint
- * 
  */
 
 import type {
@@ -16,8 +21,9 @@ import type {
   FollowedChat,
   Notification,
   Connection,
-} from "./types/backend-types";
-import type { ChatAsHighlight, ChatAsPost, UserLocal } from "./types/frontend-types";
+} from "./types/backend-data-model";
+import { PrototypeData } from "./types/frontend-data-model";
+import type { ChatAsHighlight, ChatAsPost, FrontendPrototype, FrontendUser } from "./types/frontend-data-model";
 
 export function apiEndpoint(route: string): string | URL {
   const host = process.env["HOST"];
@@ -34,7 +40,7 @@ export function apiEndpoint(route: string): string | URL {
 
 // ── Read operations ────────────────────────────────────────────────
 
-export async function getCurrentUser(parameters: {}): Promise<UserLocal | null> {
+export async function getCurrentUser(parameters: {}): Promise<FrontendUser | null> {
   try {
     const response = await fetch(apiEndpoint("/api/get_current_user"), {
       method: "POST",
@@ -43,18 +49,18 @@ export async function getCurrentUser(parameters: {}): Promise<UserLocal | null> 
 
     if (!response.ok) return null;
 
-    return await response.json() as UserLocal;
+    return await response.json() as FrontendUser;
   } catch {
     return null;
   }
 }
 
-export async function getAllPrototypesData(startTime?: Date, endTime?: Date): Promise<PrototypeData[]> {
+export async function getAllPrototypesLatestData(startTime?: Date, endTime?: Date): Promise<PrototypeData[]> {
   const body: any = {};
   if (startTime) body.start_time = startTime.toISOString();
   if (endTime) body.end_time = endTime.toISOString();
 
-  const response = await fetch(apiEndpoint("/api/prototypes/get_all_data"), {
+  const response = await fetch(apiEndpoint("/api/prototype/get_all_prototypes_latest_data"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -144,7 +150,7 @@ export async function markAllNotificationsRead(): Promise<void> {
 export async function authenticateUser(parameters: {
   email: string;
   password: string;
-}): Promise<UserLocal | null> {
+}): Promise<FrontendUser | null> {
   const response = await fetch(apiEndpoint("/api/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -345,4 +351,79 @@ export async function getHighlights(parameters: {
     start_date: new Date(h.start_date),
     end_date: new Date(h.end_date),
   })) as ChatAsHighlight[]
+}
+
+export async function getPrototypes(parameters: {}): Promise<FrontendPrototype[]> {
+  const res = await fetch(apiEndpoint(`/api/prototype/get_prototypes`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({  }),
+  })
+
+  if (!res.ok) {
+    throw new Error(`getHighlights failed: ${res.status}`)
+  }
+
+  const response = await res.json();
+  const prototypes = response.prototypes as any[];
+
+  const frontendPrototypes: FrontendPrototype[] = prototypes.map((prototype) => ({
+    ...prototype,
+    data: {
+      ...prototype.data,
+      window_lower_bound: new Date(prototype.data.window_lower_bound),
+      window_upper_bound: new Date(prototype.data.window_upper_bound),
+      cursor: new Date(prototype.data.cursor),
+      readings: (prototype.data.readings ?? []).map((reading: any) => ({
+        ...reading,
+        date: new Date(reading.date),
+      })),
+      highlights: (prototype.data.highlights ?? []).map((highlight: any) => ({
+        ...highlight,
+        start_date: new Date(highlight.start_date),
+        end_date: new Date(highlight.end_date),
+      })),
+    },
+  }));
+
+  return frontendPrototypes;
+}
+
+export async function getPrototypeDataInRange(parameters: {
+  prototypeId: string;
+  startDate: Date;
+  endDate: Date;
+}): Promise<PrototypeData> {
+  const { prototypeId, startDate, endDate } = parameters;
+
+  const res = await fetch(
+    apiEndpoint(`/api/prototype/${prototypeId}/get_data_in_range`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`getPrototypeDataInRange failed: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return {
+    ...data,
+    cursor: new Date(data.cursor),
+    readings: data.readings.map((r: any) => ({
+      ...r,
+      date: new Date(r.date),
+    })),
+    highlights: data.highlights.map((h: any) => ({
+      ...h,
+      start_date: new Date(h.start_date),
+      end_date: new Date(h.end_date),
+    })),
+  } as PrototypeData;
 }

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react"
 import type { UserLocal } from "./types/frontend-types"
-import { authenticateUser, getCurrentUser, apiEndpoint } from "./api-client"
+import { authenticateUser, getCurrentUser, apiEndpoint } from "./client-api"
 
 interface AuthContextValue {
   user: UserLocal | null

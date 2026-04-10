@@ -1,21 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import * as admin from "firebase-admin";
+import { getPrototypeData, getPrototypeDataWithTimeWindow } from "@/lib/prototype-data";
+import { FrontendPrototype, PrototypeData } from "@/lib/types/frontend-data-model";
+import type { TimeWindowValue } from "@/lib/types/utility-types";
+import { TimeWindow } from "@/lib/types/utility-types";
 
 // POST /api/prototype/get_prototypes
 export async function POST(req: NextRequest) {
   const prototypesSnap = await db.collection("Prototype").get();
+  const VISIBLE_TIME_WINDOW: TimeWindowValue = TimeWindow.sm;
+  const PADDED_TIME_WINDOW: TimeWindowValue = TimeWindow.md;
 
-  const prototypes = prototypesSnap.docs.map((doc) => {
-    const d = doc.data();
-    return {
-      id: doc.id,
-      name: d.name as string,
-      code: d.code as string,
-      location: d.location as admin.firestore.GeoPoint,
-      owner: (d.owner as admin.firestore.DocumentReference).id,
-    };
-  });
+  const prototypes: FrontendPrototype[] = await Promise.all(
+    prototypesSnap.docs.map(async (doc) => {
+      const d = doc.data();
+
+      // Resolve owner reference → User document
+      const ownerRef = d.owner as admin.firestore.DocumentReference;
+      const ownerSnap = await ownerRef.get();
+      const ownerData = ownerSnap.data();
+
+      const prototypeData = await getPrototypeDataWithTimeWindow(doc.id, PADDED_TIME_WINDOW);
+
+      const frontendPrototype: FrontendPrototype = {
+        id: doc.id,
+        label: d.label,
+        owner: {
+          name: ownerData?.name ?? "",
+          full_name: `${ownerData?.name ?? ""} ${ownerData?.last_name ?? ""}`.trim(),
+          profile_picture: ownerData?.profile_picture ?? "",
+        },
+        data: {
+          window_upper_bound: prototypeData.cursor,
+          window_lower_bound: new Date(prototypeData.cursor.getTime() - PADDED_TIME_WINDOW * 60 * 60 * 1000),
+          cursor: prototypeData.cursor,
+          cursor_updates_automatically: true,
+
+          time_window: VISIBLE_TIME_WINDOW,
+          readings: prototypeData.readings,
+          highlights: prototypeData.highlights,
+        },
+      };
+      return frontendPrototype;
+    })
+  );
 
   return NextResponse.json({ prototypes }, { status: 200 });
 }

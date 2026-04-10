@@ -3,17 +3,10 @@
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { db } from "@/lib/firebase-admin"
-import { getAllPrototypesData, getFeed } from "@/lib/api-client"
-import type { UserLocal } from "@/lib/types/frontend-types"
-import type { Reading, Prototype } from "@/lib/types/backend-types"
-import type { ChatAsPost, ChatAsHighlight } from "@/lib/types/frontend-types"
+import { getFeed, getPrototypes } from "@/lib/client-api"
+import type { ChatAsPost, FrontendPrototype, FrontendUser } from "@/lib/types/frontend-data-model"
+import type { PrototypeData } from "@/lib/types/frontend-data-model"
 import { Dashboard } from "@/components/dashboard"
-
-export interface PrototypeData {
-  prototype: Prototype
-  readings: Reading[]
-  highlights: ChatAsHighlight[]
-}
 
 export default async function DashboardPage() {
   const cookieStore = await cookies()
@@ -24,27 +17,17 @@ export default async function DashboardPage() {
   if (!userDoc.exists) redirect("/login")
 
   const { hashed_password, ...userLocal } = userDoc.data()!
-  const currentUser = { id: userDoc.id, ...userLocal } as UserLocal
+  const currentUser = { id: userDoc.id, ...userLocal } as FrontendUser
 
-  const [prototypeData, initialFeed] = await Promise.all([
-    getAllPrototypesData(),
+  const [initialPrototypes, initialFeed]: [FrontendPrototype[], ChatAsPost[]] = await Promise.all([
+    getPrototypes({}),
     getFeed({ researcherId: currentUser.id }),
   ])
-
-  // Transform the data to match the expected format
-  const transformedPrototypeData: PrototypeData[] = prototypeData.map(({ prototype, readings, highlights }) => ({
-    prototype,
-    readings: readings.map((r) => ({
-      ...r,
-      date: new Date(r.date),
-    })),
-    highlights,
-  }))
 
   return (
     <Dashboard
       currentUser={currentUser}
-      initialPrototypeData={transformedPrototypeData}
+      initialPrototypes={initialPrototypes}
       initialFeed={initialFeed}
     />
   )

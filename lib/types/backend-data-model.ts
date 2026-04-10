@@ -1,10 +1,14 @@
-// BACKEND-TYPES
-// The following definitions describe the data structures
-// stored in the database; by no means do they restrict
-// the shape of the data that the frontend handles internally
-// nor the data that the backend feeds the frontend with through
-// the API
-// Version: 5
+/**
+ * BACKEND DATA MODEL
+ * Version: 5 (2026.04.08)
+ * 
+ * ::Description::
+ * The following definitions describe the data structures
+ * stored in the database; by no means do they restrict
+ * the shape of the data that the frontend handles internally
+ * nor the data that the backend feeds the frontend with through
+ * the API
+ */
 
 // ─────────────────────────────────────────────
 // Namespace: Machine
@@ -21,7 +25,7 @@ export interface Reading {
 export interface Prototype {
   id: Id;
   location: GeoPoint;
-  name: string;
+  label: string;
   code: string;
   readings: Reading[];
   owner: Reference;
@@ -45,6 +49,7 @@ export interface Chat {
   readings?: Reading[];
   commenters: Reference[];
   followers: Reference[];
+  prototype: Reference;
 }
 
 export interface Comment {
