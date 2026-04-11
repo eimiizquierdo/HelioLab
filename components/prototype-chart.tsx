@@ -20,11 +20,12 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { Reading } from "@/lib/types/backend-data-model";
-import type { ChatAsHighlight } from "@/lib/types/frontend-data-model";
+import type { ChatAsHighlight, FrontendPrototype } from "@/lib/types/frontend-data-model";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { usePrototypeNavigation } from "@/hooks/use-prototype-navigation";
 
 export interface SelectionRange {
   startDate: Date;
@@ -41,11 +42,10 @@ interface PrototypeChartProps {
   highlights: ChatAsHighlight[];
   domain?: [number, number];
   windowSpan: number;
+  isLoading?: boolean;
   onSelectionComplete?: (range: SelectionRange) => void;
-  onZoomIn?: () => void;
-  onZoomOut?: () => void;
-  onScrollLeft?: () => void;
-  onScrollRight?: () => void;
+  getPrototype: () => FrontendPrototype | undefined;
+  setPrototype: (callback: (prototype: FrontendPrototype) => FrontendPrototype) => void;
 }
 
 function formatTime(date: Date) {
@@ -84,11 +84,10 @@ export const PrototypeChart = forwardRef<
     highlights,
     domain,
     windowSpan,
+    isLoading = false,
     onSelectionComplete,
-    onZoomIn,
-    onZoomOut,
-    onScrollLeft,
-    onScrollRight,
+    getPrototype,
+    setPrototype
   },
   ref,
 ) {
@@ -112,6 +111,13 @@ export const PrototypeChart = forwardRef<
   const highlightRectsRef = useRef<
     { x1: number; x2: number; chatId: string }[]
   >([]);
+
+  const { 
+    handleScrollLeft: onScrollLeft, 
+    handleScrollRight: onScrollRight, 
+    handleZoomIn: onZoomIn, 
+    handleZoomOut: onZoomOut 
+  } = usePrototypeNavigation(getPrototype, setPrototype);
 
   const chartData = useMemo(() => {
     return readings.map((r) => ({
@@ -386,6 +392,7 @@ export const PrototypeChart = forwardRef<
               <Checkbox
                 checked={showPower}
                 onCheckedChange={(checked) => setShowPower(Boolean(checked))}
+                disabled={isLoading}
                 style={{
                   borderColor: POWER_LINE_COLOR,
                   color: POWER_LINE_COLOR,
@@ -408,6 +415,7 @@ export const PrototypeChart = forwardRef<
                 onCheckedChange={(checked) =>
                   setShowIrradiance(Boolean(checked))
                 }
+                disabled={isLoading}
                 style={{
                   borderColor: IRRADIANCE_LINE_COLOR,
                   color: IRRADIANCE_LINE_COLOR,
@@ -429,7 +437,7 @@ export const PrototypeChart = forwardRef<
                 variant="outline"
                 size="sm"
                 onClick={onZoomIn}
-                disabled={!onZoomIn}
+                disabled={isLoading || !onZoomIn}
                 className="h-8 w-8 p-0"
                 title="Acercar"
               >
@@ -439,7 +447,7 @@ export const PrototypeChart = forwardRef<
                 variant="outline"
                 size="sm"
                 onClick={onZoomOut}
-                disabled={!onZoomOut}
+                disabled={isLoading || !onZoomOut}
                 className="h-8 w-8 p-0"
                 title="Alejar"
               >
@@ -449,7 +457,7 @@ export const PrototypeChart = forwardRef<
                 variant="outline"
                 size="sm"
                 onClick={onScrollLeft}
-                disabled={!onScrollLeft}
+                disabled={isLoading || !onScrollLeft}
                 className="h-8 w-8 p-0"
                 title="Desplazar izquierda"
               >
@@ -459,7 +467,7 @@ export const PrototypeChart = forwardRef<
                 variant="outline"
                 size="sm"
                 onClick={onScrollRight}
-                disabled={!onScrollRight}
+                disabled={isLoading || !onScrollRight}
                 className="h-8 w-8 p-0"
                 title="Desplazar derecha"
               >
@@ -481,6 +489,13 @@ export const PrototypeChart = forwardRef<
             className="absolute inset-0 z-10"
             style={{ pointerEvents: "none" }}
           />
+
+          {/* Loading overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[2px]">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
 
           {chartData.length === 0 ? (
             <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border">

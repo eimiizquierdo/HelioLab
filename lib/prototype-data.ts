@@ -2,13 +2,6 @@ import { db } from "@/lib/firebase-admin";
 import { Timestamp } from "firebase-admin/firestore";
 import type { ChatAsHighlight, PrototypeData } from "./types/frontend-data-model";
 
-
-export async function getPrototypeDataWithTimeWindow(prototypeId: string, timeWindow: number = 6) {
-  const endDate = new Date();
-  const startDate = new Date(endDate.getTime() - timeWindow * 60 * 60 * 1000);
-  return getPrototypeData(prototypeId, startDate, endDate);
-}
-
 /**
  * Returns the {PrototypeData} of a prototype, using the current timestamp
  * as the upper bound for the `date`/`creation` property of the data to be 

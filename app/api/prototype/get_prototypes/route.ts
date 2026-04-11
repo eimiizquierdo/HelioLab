@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 import * as admin from "firebase-admin";
-import { getPrototypeData, getPrototypeDataWithTimeWindow } from "@/lib/prototype-data";
+import { getPrototypeData } from "@/lib/prototype-data";
 import { FrontendPrototype, PrototypeData } from "@/lib/types/frontend-data-model";
 import type { TimeWindowValue } from "@/lib/types/utility-types";
 import { TimeWindow } from "@/lib/types/utility-types";
@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   const VISIBLE_TIME_WINDOW: TimeWindowValue = TimeWindow.sm;
   const PADDED_TIME_WINDOW: TimeWindowValue = TimeWindow.md;
 
+  const endDate = new Date();
   const prototypes: FrontendPrototype[] = await Promise.all(
     prototypesSnap.docs.map(async (doc) => {
       const d = doc.data();
@@ -21,7 +22,8 @@ export async function POST(req: NextRequest) {
       const ownerSnap = await ownerRef.get();
       const ownerData = ownerSnap.data();
 
-      const prototypeData = await getPrototypeDataWithTimeWindow(doc.id, PADDED_TIME_WINDOW);
+      const startDate = new Date(endDate.getTime() - PADDED_TIME_WINDOW * 60 * 60 * 1_000);
+      const prototypeData = await getPrototypeData(doc.id, startDate, endDate);
 
       const frontendPrototype: FrontendPrototype = {
         id: doc.id,
@@ -31,6 +33,7 @@ export async function POST(req: NextRequest) {
           full_name: `${ownerData?.name ?? ""} ${ownerData?.last_name ?? ""}`.trim(),
           profile_picture: ownerData?.profile_picture ?? "",
         },
+        is_loading: false,
         data: {
           window_upper_bound: prototypeData.cursor,
           window_lower_bound: new Date(prototypeData.cursor.getTime() - PADDED_TIME_WINDOW * 60 * 60 * 1000),

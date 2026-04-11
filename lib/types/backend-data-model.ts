@@ -10,13 +10,15 @@
  * the API
  */
 
+import { Id, UtilityTimestamp, UtilityGeoPoint, UtilityReference } from "./utility-types";
+
 // ─────────────────────────────────────────────
 // Namespace: Machine
 // ─────────────────────────────────────────────
 
 export interface Reading {
   id: Id;
-  date: Timestamp;
+  date: UtilityTimestamp;
   current: number;
   voltage: number;
   irradiance: number;
@@ -24,11 +26,11 @@ export interface Reading {
 
 export interface Prototype {
   id: Id;
-  location: GeoPoint;
+  location: UtilityGeoPoint;
   label: string;
   code: string;
   readings: Reading[];
-  owner: Reference;
+  owner: UtilityReference;
 }
 
 // ─────────────────────────────────────────────
@@ -42,27 +44,27 @@ export interface Mention {
 
 export interface Chat {
   id: Id;
-  creation_date: Timestamp;
-  last_message_time: Timestamp;
-  creator: Reference;
-  first_comment: Reference;
+  creation_date: UtilityTimestamp;
+  last_message_time: UtilityTimestamp;
+  creator: UtilityReference;
+  first_comment: UtilityReference;
   readings?: Reading[];
-  commenters: Reference[];
-  followers: Reference[];
-  prototype: Reference;
+  commenters: UtilityReference[];
+  followers: UtilityReference[];
+  prototype: UtilityReference;
 }
 
 export interface Comment {
   id: Id;
-  chat: Reference;
+  chat: UtilityReference;
   full_name: string;
-  creation_date: Timestamp;
-  author: Reference;
+  creation_date: UtilityTimestamp;
+  author: UtilityReference;
   degree: string;
   text: string;
   mentions?: Mention[];
-  highlight_start?: Timestamp;
-  highlight_end?: Timestamp;
+  highlight_start?: UtilityTimestamp;
+  highlight_end?: UtilityTimestamp;
 }
 
 // ─────────────────────────────────────────────
@@ -78,8 +80,8 @@ export interface User {
   email: string;
   degree: string;
   profile_picture: string;
-  last_chat_seen_time: Timestamp;
-  last_interaction_time: Timestamp;
+  last_chat_seen_time: UtilityTimestamp;
+  last_interaction_time: UtilityTimestamp;
   timezone: string;
 }
 
@@ -93,11 +95,11 @@ export interface Admin {
 
 export interface FollowedChat {
   id: Id;
-  creation_date: Timestamp;
+  creation_date: UtilityTimestamp;
   index: number;
-  owner: Reference;
-  chat: Reference;
-  last_message_seen_time: Reference;
+  owner: UtilityReference;
+  chat: UtilityReference;
+  last_message_seen_time: UtilityReference;
   silenced: boolean;
   name: string;
 }
@@ -106,14 +108,14 @@ export interface Notification {
   id: Id;
   type: string;
   has_been_read: boolean;
-  followed_chat?: Reference;
-  user: Reference;
-  creation_date: Timestamp;
+  followed_chat?: UtilityReference;
+  user: UtilityReference;
+  creation_date: UtilityTimestamp;
 }
 
 export interface Connection {
     id: Id;
-    owner: Reference;
+    owner: UtilityReference;
     link: string;
     icon: string;
     name: string;

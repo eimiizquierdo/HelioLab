@@ -9,12 +9,12 @@
  */
 
 import { Reading, User } from "./backend-data-model";
-import { Reference, Timestamp, Url, UtcOffset } from "./utility-types";
+import { UtilityReference, UtilityTimestamp, Url, UtcOffset } from "./utility-types";
 
 export type FrontendUser = Omit<User, "hashed_password">;
 
 export type ChatAsPost = {
-    chat: Reference;
+    chat: UtilityReference;
     creation_date: Date;
     creator: {
         name: string;
@@ -24,14 +24,14 @@ export type ChatAsPost = {
         profile_picture: Url;
     };
     first_comment_text: string;
-    commenters: Reference[];
-    followers: Reference[];
+    commenters: UtilityReference[];
+    followers: UtilityReference[];
     readings: Reading[];
     prototype_name: string;
 };
 
 export type ChatAsHighlight = {
-    chat: Reference;
+    chat: UtilityReference;
     creator_profile_picture: Url;
     creator?: {
         name: string;
@@ -49,13 +49,13 @@ export type ChatAsMessage = {
         timezone: UtcOffset;
         profile_picture: Url;
     };
-    creation_time: Timestamp;
+    creation_time: UtilityTimestamp;
     is_myself: boolean;
 };
 
 export type PrototypeData = {
-    prototype: Reference;
-    cursor: Timestamp;
+    prototype: UtilityReference;
+    cursor: UtilityTimestamp;
 
     /**
      * Represents the number of hours of the time window
@@ -66,19 +66,23 @@ export type PrototypeData = {
 };
 
 export type FrontendPrototype = {
-    id: Reference;
+    id: UtilityReference;
     label: string;
     owner: {
         name: string;
         full_name: string;
         profile_picture: Url;
     };
+    // scroll
+    // window
+    is_loading: boolean;
+
     data: {
         /** The latest time that the cursor can reach */
-        window_upper_bound: Timestamp;
+        window_upper_bound: UtilityTimestamp;
         /** The earliest time that the cursor can reach */
-        window_lower_bound: Timestamp;
-        cursor: Timestamp;
+        window_lower_bound: UtilityTimestamp;
+        cursor: UtilityTimestamp;
         cursor_updates_automatically: boolean;
 
         time_window: number;
@@ -89,5 +93,5 @@ export type FrontendPrototype = {
 
 export type UserFeed = {
     chats: ChatAsPost[];
-    last_chat_seen: Timestamp;
+    last_chat_seen: UtilityTimestamp;
 };

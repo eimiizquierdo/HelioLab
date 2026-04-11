@@ -24,11 +24,14 @@ export default async function DashboardPage() {
     getFeed({ researcherId: currentUser.id }),
   ])
 
+  const initialDataFetch = new Date();
+
   return (
     <Dashboard
       currentUser={currentUser}
       initialPrototypes={initialPrototypes}
       initialFeed={initialFeed}
+      initialDataFetch={initialDataFetch}
     />
   )
 }

@@ -4,11 +4,15 @@
 
 export type UtcOffset = string;
 export type Id = string;
-export type Timestamp = Date;
-export type GeoPoint = { latitude: number; longitude: number };
-export type Reference = Id;
+export type UtilityTimestamp = Date;
+export type UtilityGeoPoint = { latitude: number; longitude: number };
+export type UtilityReference = Id;
 export type Url = string;
 
+/**
+ * Object with that holds all valid window timespans (in hours).
+ * Values are required to be sorted ascendingly
+ */
 export const TimeWindow = {
   'xs': 4,
   'sm': 6,

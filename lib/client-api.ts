@@ -1,11 +1,11 @@
 /**
  * CLIENT API
  * Version: 2 (2026.04.08)
- * 
+ *
  * ::Description::
  * This file contains functions that the frontend uses to communicate
  * with the backend
- * 
+ *
  * ::Considerations::
  * All functions must take in as a parameter an object called `parameters`,
  * which shall include the minimum number of parameters to make the
@@ -23,16 +23,21 @@ import type {
   Connection,
 } from "./types/backend-data-model";
 import { PrototypeData } from "./types/frontend-data-model";
-import type { ChatAsHighlight, ChatAsPost, FrontendPrototype, FrontendUser } from "./types/frontend-data-model";
+import type {
+  ChatAsHighlight,
+  ChatAsPost,
+  FrontendPrototype,
+  FrontendUser,
+} from "./types/frontend-data-model";
 
 export function apiEndpoint(route: string): string | URL {
   const host = process.env["HOST"];
-  
+
   // Client-side: HOST not available, return route as-is
   if (!host) {
     return route;
   }
-  
+
   // Server-side: Construct full URL
   console.log({ host, route });
   return new URL(route, host);
@@ -49,29 +54,48 @@ export async function getCurrentUser(parameters: {}): Promise<FrontendUser | nul
 
     if (!response.ok) return null;
 
-    return await response.json() as FrontendUser;
+    return (await response.json()) as FrontendUser;
   } catch {
     return null;
   }
 }
 
-export async function getAllPrototypesLatestData(startTime?: Date, endTime?: Date): Promise<PrototypeData[]> {
+export async function getAllPrototypesLatestData(
+  startDate: Date,
+): Promise<PrototypeData[]> {
   const body: any = {};
-  if (startTime) body.start_time = startTime.toISOString();
-  if (endTime) body.end_time = endTime.toISOString();
+  if (startDate) body.start_date = startDate.toISOString();
 
-  const response = await fetch(apiEndpoint("/api/prototype/get_all_prototypes_latest_data"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetch(
+    apiEndpoint("/api/prototype/get_all_prototypes_latest_data"),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
 
   if (!response.ok) {
+    console.log({
+      "Error in getAllPrototypesData": (await response.json()).error,
+    });
     throw new Error(`getAllPrototypesData failed: ${response.status}`);
   }
 
-  const data = await response.json();
-  return data.prototypes as PrototypeData[];
+  const jsonResponse = await response.json();
+  return jsonResponse.prototypes.map((data: any) => ({
+    ...data,
+    cursor: new Date(data.cursor),
+    readings: data.readings.map((r: any) => ({
+      ...r,
+      date: new Date(r.date),
+    })),
+    highlights: data.highlights.map((h: any) => ({
+      ...h,
+      start_date: new Date(h.start_date),
+      end_date: new Date(h.end_date),
+    })),
+  }));
 }
 
 export async function getReadings(parameters: {
@@ -83,7 +107,8 @@ export async function getReadings(parameters: {
   const body: any = {
     latest_date: parameters.latestDate,
   };
-  if (parameters.startTime) body.start_time = parameters.startTime.toISOString();
+  if (parameters.startTime)
+    body.start_time = parameters.startTime.toISOString();
   if (parameters.endTime) body.end_time = parameters.endTime.toISOString();
 
   const response = await fetch(
@@ -97,7 +122,7 @@ export async function getReadings(parameters: {
 
   if (!response.ok)
     throw new Error(`Failed to fetch readings: ${response.status}`);
-  return response.json().then(function(object) {
+  return response.json().then(function (object) {
     return object.readings;
   });
 }
@@ -122,11 +147,13 @@ export async function addConnection(
     link: "",
     owner: "",
     icon: "",
-    name: ""
+    name: "",
   };
 }
 
-export async function getConnections(researcher: string): Promise<Connection[]> {
+export async function getConnections(
+  researcher: string,
+): Promise<Connection[]> {
   return [];
 }
 
@@ -236,7 +263,7 @@ export async function getNotifications(parameters: {
 
   if (!response.ok)
     throw new Error(`Failed to fetch notifications: ${response.status}`);
-  return response.json().then(function(object) {
+  return response.json().then(function (object) {
     return object.notifications;
   });
 }
@@ -267,11 +294,14 @@ export async function updateUserProfile(parameters: {
   timezone?: string;
 }): Promise<User | null> {
   const { userId, ...body } = parameters;
-  const response = await fetch(apiEndpoint(`/api/researcher/${userId}/update_profile_data`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetch(
+    apiEndpoint(`/api/researcher/${userId}/update_profile_data`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
 
   if (!response.ok)
     throw new Error(`Failed to update profile: ${response.status}`);
@@ -305,16 +335,19 @@ export async function addComment(parameters: {
 }
 
 export async function getFeed(parameters: {
-  researcherId: string,
-  latestChatId?: string
+  researcherId: string;
+  latestChatId?: string;
 }): Promise<ChatAsPost[]> {
   const { researcherId, latestChatId } = parameters;
 
-  const res = await fetch(apiEndpoint(`/api/researcher/${researcherId}/get_feed`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ latest_chat_id: latestChatId ?? null }),
-  });
+  const res = await fetch(
+    apiEndpoint(`/api/researcher/${researcherId}/get_feed`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ latest_chat_id: latestChatId ?? null }),
+    },
+  );
 
   if (!res.ok) {
     throw new Error(`getFeed failed: ${res.status}`);
@@ -332,59 +365,68 @@ export async function getFeed(parameters: {
 }
 
 export async function getHighlights(parameters: {
-  prototypeId: string
-  latestDate?: Date
+  prototypeId: string;
+  latestDate?: Date;
 }): Promise<ChatAsHighlight[]> {
-  const res = await fetch(apiEndpoint(`/api/prototype/${parameters.prototypeId}/get_highlights`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ latest_date: parameters.latestDate?.toISOString() ?? null }),
-  })
+  const res = await fetch(
+    apiEndpoint(`/api/prototype/${parameters.prototypeId}/get_highlights`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        latest_date: parameters.latestDate?.toISOString() ?? null,
+      }),
+    },
+  );
 
   if (!res.ok) {
-    throw new Error(`getHighlights failed: ${res.status}`)
+    throw new Error(`getHighlights failed: ${res.status}`);
   }
 
-  const data = await res.json()
+  const data = await res.json();
   return data.highlights.map((h: any) => ({
     ...h,
     start_date: new Date(h.start_date),
     end_date: new Date(h.end_date),
-  })) as ChatAsHighlight[]
+  })) as ChatAsHighlight[];
 }
 
-export async function getPrototypes(parameters: {}): Promise<FrontendPrototype[]> {
+export async function getPrototypes(parameters: {}): Promise<
+  FrontendPrototype[]
+> {
   const res = await fetch(apiEndpoint(`/api/prototype/get_prototypes`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({  }),
-  })
+    body: JSON.stringify({}),
+  });
 
   if (!res.ok) {
-    throw new Error(`getHighlights failed: ${res.status}`)
+    throw new Error(`getHighlights failed: ${res.status}`);
   }
 
   const response = await res.json();
   const prototypes = response.prototypes as any[];
 
-  const frontendPrototypes: FrontendPrototype[] = prototypes.map((prototype) => ({
-    ...prototype,
-    data: {
-      ...prototype.data,
-      window_lower_bound: new Date(prototype.data.window_lower_bound),
-      window_upper_bound: new Date(prototype.data.window_upper_bound),
-      cursor: new Date(prototype.data.cursor),
-      readings: (prototype.data.readings ?? []).map((reading: any) => ({
-        ...reading,
-        date: new Date(reading.date),
-      })),
-      highlights: (prototype.data.highlights ?? []).map((highlight: any) => ({
-        ...highlight,
-        start_date: new Date(highlight.start_date),
-        end_date: new Date(highlight.end_date),
-      })),
-    },
-  }));
+  const frontendPrototypes: FrontendPrototype[] = prototypes.map(
+    (prototype) => ({
+      ...prototype,
+      data: {
+        ...prototype.data,
+        window_lower_bound: new Date(prototype.data.window_lower_bound),
+        window_upper_bound: new Date(prototype.data.window_upper_bound),
+        cursor: new Date(prototype.data.cursor),
+        readings: (prototype.data.readings ?? []).map((reading: any) => ({
+          ...reading,
+          date: new Date(reading.date),
+        })),
+        highlights: (prototype.data.highlights ?? []).map((highlight: any) => ({
+          ...highlight,
+          start_date: new Date(highlight.start_date),
+          end_date: new Date(highlight.end_date),
+        })),
+      },
+    }),
+  );
 
   return frontendPrototypes;
 }
@@ -405,7 +447,7 @@ export async function getPrototypeDataInRange(parameters: {
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
       }),
-    }
+    },
   );
 
   if (!res.ok) {
@@ -425,5 +467,5 @@ export async function getPrototypeDataInRange(parameters: {
       start_date: new Date(h.start_date),
       end_date: new Date(h.end_date),
     })),
-  } as PrototypeData;
+  };
 }

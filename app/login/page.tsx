@@ -17,6 +17,8 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
+  console.log("Here");
+
   // Redirect if already logged in
   if (!loading && user) {
     router.replace("/")
