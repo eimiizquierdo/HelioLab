@@ -163,5 +163,5 @@ export function usePrototypeNavigation(
     }))
   }, [getPrototype, setPrototype, chartTimeStep])
 
-  return { handleScrollLeft, handleScrollRight, handleZoomIn, handleZoomOut }
+  return { handleScrollLeft, handleScrollRight, handleZoomIn, handleZoomOut, chartTimeStep }
 }

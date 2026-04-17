@@ -30,20 +30,17 @@ export function Dashboard({
   const [activeIndex, setActiveIndex] = useState(0)
   const [feed, setFeed] = useState<ChatAsPost[]>(initialFeed)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
+  const [lastDataFetch, setLastDataFetch] = useState<Date>(initialDataFetch)
 
   const POLLING_INTERVAL_MINUTES = 0.5
 
   const chartRef = useRef<PrototypeChartHandle>(null)
-  const lastDataFetchRef = useRef<Date>(initialDataFetch)
-  const prototypesRef = useRef(prototypes)
-
-  useEffect(() => { prototypesRef.current = prototypes }, [prototypes])
 
   const activePrototype = prototypes[activeIndex]
 
   const pollData = useCallback(async () => {
     try {
-      const data = await getAllPrototypesLatestData(lastDataFetchRef.current)
+      const data = await getAllPrototypesLatestData(lastDataFetch)
       const newLastDataFetch = new Date()
 
       setPrototypes((previous) =>
@@ -51,15 +48,13 @@ export function Dashboard({
           const datum = data.find((d) => d.prototype === prototype.id)
           if (!datum) return prototype
 
-          console.log("The number of readings fetched is");
-          console.log(datum.readings.length);
-
           return {
             ...prototype,
             data: {
               ...prototype.data,
               readings: [...prototype.data.readings, ...datum.readings],
               highlights: [...prototype.data.highlights, ...datum.highlights],
+              window_upper_bound: newLastDataFetch,
               ...(prototype.data.cursor_updates_automatically && {
                 cursor: newLastDataFetch,
               }),
@@ -68,7 +63,7 @@ export function Dashboard({
         })
       )
 
-      lastDataFetchRef.current = newLastDataFetch
+      setLastDataFetch(newLastDataFetch)
     } catch (error) {
       console.error("Failed to load data:", error)
     }
@@ -121,7 +116,7 @@ export function Dashboard({
   const prototypeAccessors = useMemo(
     () =>
       prototypes.map((p) => ({
-        getPrototype: () => prototypesRef.current.find((proto) => proto.id === p.id),
+        getPrototype: () => prototypes.find((proto) => proto.id === p.id),
         setPrototype: (callback: (proto: FrontendPrototype) => FrontendPrototype) => {
           setPrototypes((prev) => {
             const index = prev.findIndex((proto) => proto.id === p.id)

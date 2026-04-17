@@ -56,6 +56,10 @@ function formatTime(date: Date) {
   return `${h.toString().padStart(2, "0")}:${minutes} ${period}`;
 }
 
+function formatDate(date: Date) {
+  return date.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
+}
+
 function formatTooltipLabel(value: number | string) {
   return new Date(Number(value)).toLocaleTimeString([], {
     hour: "2-digit",
@@ -74,6 +78,65 @@ const IRRADIANCE_SUFFIX = " W/m²";
 const CHART_MARGIN = { top: 5, right: 20, bottom: 5, left: 0 };
 const WINDOW_HOURS = 2;
 
+// ── Custom X-axis tick component ──────────────────────────────────────────
+// Renders a two-line label (time + date) for boundary ticks (priority 3),
+// and a single-line label for day transitions (priority 2) and step marks
+// (priority 1).
+
+interface XTickProps {
+  x?: number;
+  y?: number;
+  payload?: { value: number };
+  tickPriorityMap: Map<number, number>;
+}
+
+function XTick({ x = 0, y = 0, payload, tickPriorityMap }: XTickProps) {
+  if (!payload) return null;
+  const ms = payload.value;
+  const priority = tickPriorityMap.get(ms) ?? 1;
+  const date = new Date(ms);
+
+  const baseStyle: React.CSSProperties = {
+    fontSize: 11,
+    fill: "currentColor",
+    dominantBaseline: "hanging",
+  };
+
+  if (priority === 3) {
+    // Two-line: time on top, date below
+    return (
+      <g transform={`translate(${x},${y + 4})`}>
+        <text textAnchor="middle" style={baseStyle}>
+          {formatTime(date)}
+        </text>
+        <text textAnchor="middle" dy={14} style={{ ...baseStyle, opacity: 0.6 }}>
+          {formatDate(date)}
+        </text>
+      </g>
+    );
+  }
+
+  if (priority === 2) {
+    // Single-line date label for day transitions
+    return (
+      <g transform={`translate(${x},${y + 4})`}>
+        <text textAnchor="middle" style={baseStyle}>
+          {formatDate(date)}
+        </text>
+      </g>
+    );
+  }
+
+  // Priority 1: step mark — single-line time
+  return (
+    <g transform={`translate(${x},${y + 4})`}>
+      <text textAnchor="middle" style={baseStyle}>
+        {formatTime(date)}
+      </text>
+    </g>
+  );
+}
+
 export const PrototypeChart = forwardRef<
   PrototypeChartHandle,
   PrototypeChartProps
@@ -87,7 +150,7 @@ export const PrototypeChart = forwardRef<
     isLoading = false,
     onSelectionComplete,
     getPrototype,
-    setPrototype
+    setPrototype,
   },
   ref,
 ) {
@@ -104,19 +167,15 @@ export const PrototypeChart = forwardRef<
   const dragStartLabelRef = useRef<string | null>(null);
   const dragCurrentLabelRef = useRef<string | null>(null);
 
-  // Frozen orange selection (pixels)
   const frozenSelectionRef = useRef<{ x1: number; x2: number } | null>(null);
+  const highlightRectsRef = useRef<{ x1: number; x2: number; chatId: string }[]>([]);
 
-  // Highlight pixel ranges (blue) — recomputed whenever readings or highlights change
-  const highlightRectsRef = useRef<
-    { x1: number; x2: number; chatId: string }[]
-  >([]);
-
-  const { 
-    handleScrollLeft: onScrollLeft, 
-    handleScrollRight: onScrollRight, 
-    handleZoomIn: onZoomIn, 
-    handleZoomOut: onZoomOut 
+  const {
+    handleScrollLeft: onScrollLeft,
+    handleScrollRight: onScrollRight,
+    handleZoomIn: onZoomIn,
+    handleZoomOut: onZoomOut,
+    chartTimeStep,
   } = usePrototypeNavigation(getPrototype, setPrototype);
 
   const chartData = useMemo(() => {
@@ -155,19 +214,17 @@ export const PrototypeChart = forwardRef<
 
   // ── Canvas drawing ──────────────────────────────────────────────────────
 
-  // Redraws the entire canvas: blue highlights first, orange selection on top
   const redrawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Blue highlight rects
     for (const rect of highlightRectsRef.current) {
       const left = Math.min(rect.x1, rect.x2);
       const width = Math.abs(rect.x2 - rect.x1);
       if (width < 1) continue;
-      ctx.fillStyle = "rgba(59,130,246,0.18)"; // blue-500 @ 18%
+      ctx.fillStyle = "rgba(59,130,246,0.18)";
       ctx.fillRect(left, 0, width, canvas.height);
       ctx.strokeStyle = "rgba(59,130,246,0.55)";
       ctx.lineWidth = 1.5;
@@ -175,7 +232,6 @@ export const PrototypeChart = forwardRef<
       ctx.strokeRect(left + 0.5, 0.5, width - 1, canvas.height - 1);
     }
 
-    // Orange frozen / live selection on top
     const sel = frozenSelectionRef.current;
     if (sel) {
       const left = Math.min(sel.x1, sel.x2);
@@ -199,7 +255,6 @@ export const PrototypeChart = forwardRef<
   useImperativeHandle(ref, () => ({ clearSelection }), [clearSelection]);
 
   // ── Map highlight timestamps → pixel x positions ──────────────────────
-  // Called after resize or when highlights/readings change
 
   const computeHighlightRects = useCallback(() => {
     const container = containerRef.current;
@@ -214,7 +269,6 @@ export const PrototypeChart = forwardRef<
     const range = maxTime - minTime;
     if (range === 0) return;
 
-    // Recharts reserves left margin pixels before the plot area starts
     const plotLeft = CHART_MARGIN.left;
     const plotRight = containerWidth - CHART_MARGIN.right;
     const plotWidth = plotRight - plotLeft;
@@ -246,7 +300,6 @@ export const PrototypeChart = forwardRef<
     return () => ro.disconnect();
   }, [computeHighlightRects, redrawCanvas]);
 
-  // Recompute rects when highlights or readings change
   useEffect(() => {
     computeHighlightRects();
     redrawCanvas();
@@ -273,11 +326,9 @@ export const PrototypeChart = forwardRef<
     function onMouseDown(e: MouseEvent) {
       if (!activeLabelRef.current) return;
       isDraggingRef.current = true;
-      dragStartXRef.current =
-        e.clientX - container!.getBoundingClientRect().left;
+      dragStartXRef.current = e.clientX - container!.getBoundingClientRect().left;
       dragStartLabelRef.current = activeLabelRef.current;
       dragCurrentLabelRef.current = activeLabelRef.current;
-      // Clear previous orange selection and redraw blue highlights
       frozenSelectionRef.current = null;
       redrawCanvas();
       container!.style.cursor = "crosshair";
@@ -288,7 +339,6 @@ export const PrototypeChart = forwardRef<
       if (activeLabelRef.current)
         dragCurrentLabelRef.current = activeLabelRef.current;
       const currentX = e.clientX - container!.getBoundingClientRect().left;
-      // Draw live orange rect over the blue highlights
       frozenSelectionRef.current = { x1: dragStartXRef.current, x2: currentX };
       redrawCanvas();
       container!.style.cursor = "col-resize";
@@ -352,9 +402,8 @@ export const PrototypeChart = forwardRef<
     router.push(`/chat/${chatId}`);
   }
 
-  // Hit-test a click on the canvas against highlight rects
   function handleCanvasClick(e: React.MouseEvent<HTMLElement>) {
-    if (frozenSelectionRef.current) return; // user just finished a drag, ignore
+    if (frozenSelectionRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const x = e.clientX - canvas.getBoundingClientRect().left;
@@ -372,6 +421,72 @@ export const PrototypeChart = forwardRef<
     const min = max - WINDOW_HOURS * 60 * 60 * 1000;
     return [min, max];
   }, [chartData, domain]);
+
+  // ── X-axis ticks ──────────────────────────────────────────────────────
+  // Three tiers of labels (highest wins when two ticks collide):
+  //   3 = time boundary (left and right edges) — two-line: time + date
+  //   2 = day transition (midnight) — single-line date
+  //   1 = step mark (every chartTimeStep hours) — single-line time
+  // A tick is suppressed if a higher-priority tick falls within
+  // MIN_TICK_GAP_MS of it.
+
+  const xTicks = useMemo(() => {
+    if (!chartTimeStep) return;
+
+    const stepMs = chartTimeStep * 60 * 60 * 1000
+    const MIN_TICK_GAP_MS = stepMs * 0.4
+
+    type Tick = { ms: number; priority: number }
+    const ticks: Tick[] = []
+
+    // Tier 3: time boundaries (left and right edges)
+    ticks.push({ ms: domainMin, priority: 3 })
+    ticks.push({ ms: domainMax, priority: 3 })
+
+    // Tier 2: day transitions (midnights) within the domain
+    const startOfFirstDay = new Date(domainMin)
+    startOfFirstDay.setHours(0, 0, 0, 0)
+    let midnight = startOfFirstDay.getTime() + 24 * 60 * 60 * 1000
+    while (midnight < domainMax) {
+      if (midnight > domainMin) ticks.push({ ms: midnight, priority: 2 })
+      midnight += 24 * 60 * 60 * 1000
+    }
+
+    // Tier 1: step marks — align to the nearest step boundary before domainMax
+    const stepOrigin = domainMax
+    for (let ms = stepOrigin; ms > domainMin; ms -= stepMs) {
+      ticks.push({ ms, priority: 1 })
+    }
+
+    // Sort ascending, then deduplicate: keep highest priority within gap
+    ticks.sort((a, b) => a.ms - b.ms)
+
+    const kept: Tick[] = []
+    for (const tick of ticks) {
+      const lastKept = kept[kept.length - 1]
+      if (lastKept && Math.abs(tick.ms - lastKept.ms) < MIN_TICK_GAP_MS) {
+        if (tick.priority > lastKept.priority) kept[kept.length - 1] = tick
+      } else {
+        kept.push(tick)
+      }
+    }
+
+    return kept
+  }, [domainMin, domainMax, chartTimeStep])
+
+  const xTickPriorityMap = useMemo(() => {
+    if (!xTicks) return;
+
+    const map = new Map<number, number>()
+    xTicks.forEach((t) => map.set(t.ms, t.priority))
+    return map
+  }, [xTicks])
+
+  // Passed as a prop so XTick doesn't need to close over a stale map
+  const renderXTick = useCallback(
+    (props: any) => <XTick {...props} tickPriorityMap={xTickPriorityMap} />,
+    [xTickPriorityMap],
+  )
 
   return (
     <div className="flex flex-col gap-2">
@@ -412,9 +527,7 @@ export const PrototypeChart = forwardRef<
             <label className="inline-flex items-center gap-2">
               <Checkbox
                 checked={showIrradiance}
-                onCheckedChange={(checked) =>
-                  setShowIrradiance(Boolean(checked))
-                }
+                onCheckedChange={(checked) => setShowIrradiance(Boolean(checked))}
                 disabled={isLoading}
                 style={{
                   borderColor: IRRADIANCE_LINE_COLOR,
@@ -483,94 +596,86 @@ export const PrototypeChart = forwardRef<
           style={{ cursor: "crosshair" }}
           onClick={handleCanvasClick}
         >
-          {/* Canvas: blue highlights + orange selection — now handles clicks too */}
           <canvas
             ref={canvasRef}
             className="absolute inset-0 z-10"
             style={{ pointerEvents: "none" }}
           />
 
-          {/* Loading overlay */}
           {isLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-[2px]">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           )}
 
-          {chartData.length === 0 ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-border">
-              <span className="text-sm text-muted-foreground">
-                Sin lecturas en las últimas { windowSpan } horas
-              </span>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={chartData}
-                margin={CHART_MARGIN}
-                onMouseMove={handleRechartsMouseMove}
-                onMouseLeave={handleRechartsMouseLeave}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  className="stroke-border/50"
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={chartData}
+              margin={CHART_MARGIN}
+              onMouseMove={handleRechartsMouseMove}
+              onMouseLeave={handleRechartsMouseLeave}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                className="stroke-border/50"
+              />
+              <XAxis
+                dataKey="time"
+                type="number"
+                scale="time"
+                domain={[domainMin, domainMax]}
+                ticks={xTicks?.map((t) => t.ms)}
+                tick={renderXTick}
+                height={36}
+                className="text-muted-foreground"
+              />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                className="text-muted-foreground"
+                domain={readings.length === 0 ? [0, 1000] : [0, "auto"]}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--color-card)",
+                  borderColor: "var(--color-border)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                labelStyle={{ color: "var(--color-card-foreground)" }}
+                labelFormatter={(label) => formatTooltipLabel(label)}
+                formatter={(value, name) => {
+                  const numericValue = Number(value);
+                  const suffix =
+                    name === "Potencia" ? POWER_SUFFIX : IRRADIANCE_SUFFIX;
+                  return [formatValueWithSuffix(numericValue, suffix), name];
+                }}
+              />
+              {showPower && (
+                <Line
+                  type="monotone"
+                  dataKey="power"
+                  stroke={POWER_LINE_COLOR}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: POWER_LINE_COLOR }}
+                  name="Potencia"
+                  isAnimationActive={false}
                 />
-                <XAxis
-                  dataKey="time"
-                  type="number"
-                  scale="time"
-                  domain={[domainMin, domainMax]}
-                  tickCount={8}
-                  tick={{ fontSize: 11 }}
-                  className="text-muted-foreground"
-                  tickFormatter={(ms: number) => formatTime(new Date(ms))}
+              )}
+              {showIrradiance && (
+                <Line
+                  type="monotone"
+                  dataKey="irradiance"
+                  stroke={IRRADIANCE_LINE_COLOR}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: IRRADIANCE_LINE_COLOR }}
+                  name="Irradiancia"
+                  isAnimationActive={false}
                 />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  className="text-muted-foreground"
-                  domain={["auto", "auto"]}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--color-card)",
-                    borderColor: "var(--color-border)",
-                    borderRadius: 8,
-                    fontSize: 12,
-                  }}
-                  labelStyle={{ color: "var(--color-card-foreground)" }}
-                  labelFormatter={(label) => formatTooltipLabel(label)}
-                  formatter={(value, name) => {
-                    const numericValue = Number(value);
-                    const suffix =
-                      name === "Potencia" ? POWER_SUFFIX : IRRADIANCE_SUFFIX;
-                    return [formatValueWithSuffix(numericValue, suffix), name];
-                  }}
-                />
-                {showPower && (
-                  <Line
-                    type="monotone"
-                    dataKey="power"
-                    stroke={POWER_LINE_COLOR}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, fill: POWER_LINE_COLOR }}
-                    name="Potencia"
-                  />
-                )}
-                {showIrradiance && (
-                  <Line
-                    type="monotone"
-                    dataKey="irradiance"
-                    stroke={IRRADIANCE_LINE_COLOR}
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4, fill: IRRADIANCE_LINE_COLOR }}
-                    name="Irradiancia"
-                  />
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+              )}
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
