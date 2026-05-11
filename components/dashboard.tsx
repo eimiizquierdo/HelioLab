@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { useCallback, useRef, useEffect, useMemo } from "react"
 import { getFeed, addComment, getAllPrototypesLatestData } from "@/lib/client-api"
 import type { FrontendUser, ChatAsPost, FrontendPrototype } from "@/lib/types/frontend-data-model"
 import {
