@@ -30,7 +30,7 @@ export function Dashboard({
   const [activeIndex, setActiveIndex] = useState(0)
   const [feed, setFeed] = useState<ChatAsPost[]>(initialFeed)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
-  const [lastDataFetch, setLastDataFetch] = useState<Date>(initialDataFetch)
+  const lastDataFetchRef = useRef<Date>(initialDataFetch)
 
   const POLLING_INTERVAL_MINUTES = 0.5
 
@@ -40,7 +40,7 @@ export function Dashboard({
 
   const pollData = useCallback(async () => {
     try {
-      const data = await getAllPrototypesLatestData(lastDataFetch)
+      const data = await getAllPrototypesLatestData(lastDataFetchRef.current)
       const newLastDataFetch = new Date()
 
       setPrototypes((previous) =>
@@ -63,7 +63,7 @@ export function Dashboard({
         })
       )
 
-      setLastDataFetch(newLastDataFetch)
+      lastDataFetchRef.current = newLastDataFetch
     } catch (error) {
       console.error("Failed to load data:", error)
     }
