@@ -705,6 +705,7 @@ export const PrototypeChart = forwardRef<
                   name="Irradiancia"
                   isAnimationActive={false}
                 />
+              )}
               {avgPower && showPower && (
                 <ReferenceLine
                   segment={[
