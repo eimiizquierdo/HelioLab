@@ -7,7 +7,7 @@ import {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
-} from "@/lib/api-client"
+} from "@/lib/client-api"
 import type { Notification } from "@/lib/types/backend-types"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
