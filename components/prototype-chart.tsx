@@ -705,6 +705,22 @@ export const PrototypeChart = forwardRef<
                   name="Irradiancia"
                   isAnimationActive={false}
                 />
+              {avgPower && showPower && (
+                <ReferenceLine
+                  segment={[
+                    { x: avgPower.startTime, y: avgPower.value },
+                    { x: avgPower.endTime, y: avgPower.value },
+                  ]}
+                  stroke={POWER_LINE_COLOR}
+                  strokeDasharray="6 3"
+                  strokeWidth={2}
+                  label={{
+                    value: `Prom ${avgWindow}min: ${avgPower.value.toFixed(3)}W`,
+                    position: "insideTopRight",
+                    fontSize: 11,
+                    fill: POWER_LINE_COLOR,
+                  }}
+                />
               )}
             </LineChart>
           </ResponsiveContainer>
