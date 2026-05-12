@@ -561,6 +561,22 @@ export const PrototypeChart = forwardRef<
                 Mostrar irradiancia
               </span>
             </label>
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-muted-foreground">Promedio:</span>
+              {([5, 10, 15] as const).map((min) => (
+                <button
+                  key={min}
+                  onClick={() => setAvgWindow(avgWindow === min ? null : min)}
+                  className={`rounded px-2 py-1 border text-xs transition-colors ${
+                    avgWindow === min
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {min} min
+                </button>
+              ))}
+            </div>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
