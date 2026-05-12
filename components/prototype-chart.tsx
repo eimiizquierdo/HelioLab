@@ -18,6 +18,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
 import type { Reading } from "@/lib/types/backend-data-model";
 import type { ChatAsHighlight, FrontendPrototype } from "@/lib/types/frontend-data-model";
