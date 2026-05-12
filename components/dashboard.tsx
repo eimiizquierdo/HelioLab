@@ -32,7 +32,7 @@ export function Dashboard({
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const lastDataFetchRef = useRef<Date>(initialDataFetch)
 
-  const POLLING_INTERVAL_MINUTES = 0.5
+  const POLLING_INTERVAL_MS = 10_000
 
   const chartRef = useRef<PrototypeChartHandle>(null)
 
@@ -134,7 +134,7 @@ export function Dashboard({
   useEffect(() => {
     const interval = setInterval(() => {
       pollData()
-    }, POLLING_INTERVAL_MINUTES * 60 * 1000)
+    }, POLLING_INTERVAL_MS)
 
     return () => clearInterval(interval)
   }, [pollData])
