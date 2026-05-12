@@ -160,20 +160,6 @@ export const PrototypeChart = forwardRef<
   const [showIrradiance, setShowIrradiance] = useState(true);
   const [avgWindow, setAvgWindow] = useState<5 | 10 | 15 | null>(null);
   
-  const avgPower = useMemo(() => {
-    if (!avgWindow || !chartData.length) return null;
-    const windowMs = avgWindow * 60 * 1000;
-    const latest = chartData[chartData.length - 1].time;
-    const earliest = latest - windowMs;
-    const inWindow = chartData.filter((d) => d.time >= earliest);
-    if (!inWindow.length) return null;
-    return {
-      value: inWindow.reduce((sum, d) => sum + d.power, 0) / inWindow.length,
-      startTime: earliest,
-      endTime: latest,
-    };
-  }, [chartData, avgWindow]);
-
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const activeLabelRef = useRef<string | null>(null);
@@ -204,6 +190,20 @@ export const PrototypeChart = forwardRef<
     }));
   }, [readings]);
 
+  const avgPower = useMemo(() => {
+    if (!avgWindow || !chartData.length) return null;
+    const windowMs = avgWindow * 60 * 1000;
+    const latest = chartData[chartData.length - 1].time;
+    const earliest = latest - windowMs;
+    const inWindow = chartData.filter((d) => d.time >= earliest);
+    if (!inWindow.length) return null;
+    return {
+      value: inWindow.reduce((sum, d) => sum + d.power, 0) / inWindow.length,
+      startTime: earliest,
+      endTime: latest,
+    };
+  }, [chartData, avgWindow]);
+  
   const timeLabelToDate = useMemo(() => {
     const map = new Map<string, Date>();
     chartData.forEach((d) => map.set(String(d.time), d.date));
