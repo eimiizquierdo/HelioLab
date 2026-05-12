@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { updateUserProfile } from "@/lib/api-client"
+import { updateUserProfile } from "@/lib/client-api"
 import { useAuth } from "@/lib/auth-context"
 import type { UserLocal } from "@/lib/types/frontend-types"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
