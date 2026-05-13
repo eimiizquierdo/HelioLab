@@ -684,6 +684,36 @@ export const PrototypeChart = forwardRef<
                     name === "Potencia" ? POWER_SUFFIX : IRRADIANCE_SUFFIX;
                   return [formatValueWithSuffix(numericValue, suffix), name];
                 }}
+                content={(props) => {
+                  if (!props.active || !props.payload?.length) return null;
+                  const timeMs = Number(props.label);
+                  const seg = avgSegments.find(
+                    (s) => timeMs >= s.startTime && timeMs <= s.endTime
+                  );
+                  return (
+                    <div style={{
+                      backgroundColor: "var(--color-card)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 8,
+                      padding: "8px 12px",
+                      fontSize: 12,
+                    }}>
+                      <p style={{ color: "var(--color-card-foreground)", marginBottom: 4 }}>
+                        {new Date(timeMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                      {props.payload.map((entry: any) => (
+                        <p key={entry.name} style={{ color: entry.stroke, margin: "2px 0" }}>
+                          {entry.name}: {Number(entry.value).toFixed(4)}{entry.name === "Potencia" ? " W" : " W/m²"}
+                        </p>
+                      ))}
+                      {seg && (
+                        <p style={{ color: "#6b7280", marginTop: 4, borderTop: "1px solid var(--color-border)", paddingTop: 4 }}>
+                          Prom {avgWindow}min: {seg.value.toFixed(3)}W
+                        </p>
+                      )}
+                    </div>
+                  );
+                }}
               />
               {showPower && (
                 <Line
@@ -716,13 +746,11 @@ export const PrototypeChart = forwardRef<
                     { x: seg.startTime, y: seg.value },
                     { x: seg.endTime, y: seg.value },
                   ]}
-                  stroke={POWER_LINE_COLOR}
+                  stroke="#6b7280"
                   strokeDasharray="6 3"
                   strokeWidth={2}
                   label={false}
-                >
-                  <title>{`Prom ${avgWindow}min: ${seg.value.toFixed(3)}W`}</title>
-                </ReferenceLine>
+                />
               ))}
             </LineChart>
           </ResponsiveContainer>
