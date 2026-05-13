@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { getConnections, addConnection, removeConnection } from "@/lib/client-api"
-import type { Connection } from "@/lib/types/backend-types"
+import type { Connection } from "@/lib/types/backend-data-model"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,6 +25,8 @@ import {
   Video,
   Globe,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -42,6 +44,25 @@ export function ConnectionsPanel() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [url, setUrl] = useState("")
+  const [calendarDate, setCalendarDate] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState<number | null>(null)
+
+  const calendarYear = calendarDate.getFullYear()
+  const calendarMonth = calendarDate.getMonth()
+  const monthName = calendarDate.toLocaleDateString("es-MX", { month: "long", year: "numeric" })
+
+  const firstDayOfMonth = new Date(calendarYear, calendarMonth, 1).getDay()
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate()
+
+  function prevMonth() {
+    setCalendarDate(new Date(calendarYear, calendarMonth - 1, 1))
+    setSelectedDay(null)
+  }
+
+  function nextMonth() {
+    setCalendarDate(new Date(calendarYear, calendarMonth + 1, 1))
+    setSelectedDay(null)
+  }
 
   useEffect(() => {
     if (user) {
@@ -71,7 +92,57 @@ export function ConnectionsPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <button onClick={prevMonth} className="rounded p-1 hover:bg-muted">
+            <ChevronLeft className="size-4 text-muted-foreground" />
+          </button>
+          <span className="text-xs font-semibold capitalize text-card-foreground">
+            {monthName}
+          </span>
+          <button onClick={nextMonth} className="rounded p-1 hover:bg-muted">
+            <ChevronRight className="size-4 text-muted-foreground" />
+          </button>
+        </div>
+        <div className="grid grid-cols-7 gap-y-1 text-center">
+          {["D","L","M","M","J","V","S"].map((d, i) => (
+            <span key={i} className="text-[10px] font-medium text-muted-foreground">{d}</span>
+          ))}
+          {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+            <span key={`empty-${i}`} />
+          ))}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1
+            const isSelected = selectedDay === day
+            const isToday =
+              day === new Date().getDate() &&
+              calendarMonth === new Date().getMonth() &&
+              calendarYear === new Date().getFullYear()
+            return (
+              <button
+                key={day}
+                onClick={() => setSelectedDay(isSelected ? null : day)}
+                className={`rounded-full text-xs py-0.5 transition-colors ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground font-bold"
+                    : isToday
+                    ? "border border-primary text-primary font-semibold"
+                    : "hover:bg-muted text-card-foreground"
+                }`}
+              >
+                {day}
+              </button>
+            )
+          })}
+        </div>
+        {selectedDay && (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            {selectedDay} de {calendarDate.toLocaleDateString("es-MX", { month: "long" })} seleccionado
+          </p>
+        )}
+      </div>
+
       <h3 className="text-base font-bold text-foreground">Conexiones</h3>
 
       <div className="grid grid-cols-2 gap-3">
