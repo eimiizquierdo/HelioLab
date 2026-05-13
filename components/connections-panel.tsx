@@ -38,7 +38,11 @@ const ICON_MAP: Record<string, React.ElementType> = {
   globe: Globe,
 }
 
-export function ConnectionsPanel() {
+interface ConnectionsPanelProps {
+  onDaySelect?: (date: Date) => void
+}
+
+export function ConnectionsPanel({ onDaySelect }: ConnectionsPanelProps) {
   const { user } = useAuth()
   const [connections, setConnections] = useState<Connection[]>([])
   const [open, setOpen] = useState(false)
@@ -122,7 +126,14 @@ export function ConnectionsPanel() {
             return (
               <button
                 key={day}
-                onClick={() => setSelectedDay(isSelected ? null : day)}
+                onClick={() => {
+                  const newSelected = isSelected ? null : day
+                  setSelectedDay(newSelected)
+                  if (newSelected && onDaySelect) {
+                    const selected = new Date(calendarYear, calendarMonth, newSelected, 23, 59, 59)
+                    onDaySelect(selected)
+                  }
+                }}
                 className={`rounded-full text-xs py-0.5 transition-colors ${
                   isSelected
                     ? "bg-primary text-primary-foreground font-bold"
