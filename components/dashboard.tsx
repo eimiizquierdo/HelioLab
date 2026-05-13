@@ -237,7 +237,17 @@ export function Dashboard({
       </div>
 
       <div className="w-64 shrink-0">
-        <ConnectionsPanel />
+        <ConnectionsPanel onDaySelect={(date) => {
+          if (!activePrototype) return
+          prototypeAccessors[activeIndex].setPrototype((p) => ({
+            ...p,
+            data: {
+              ...p.data,
+              cursor: date,
+              cursor_updates_automatically: false,
+            }
+          }))
+        }} />
       </div>
     </div>
   )
