@@ -190,18 +190,21 @@ export const PrototypeChart = forwardRef<
     }));
   }, [readings]);
 
-  const avgPower = useMemo(() => {
-    if (!avgWindow || !chartData.length) return null;
+  const avgSegments = useMemo(() => {
+    if (!avgWindow || !chartData.length) return [];
     const windowMs = avgWindow * 60 * 1000;
-    const latest = chartData[chartData.length - 1].time;
-    const earliest = latest - windowMs;
-    const inWindow = chartData.filter((d) => d.time >= earliest);
-    if (!inWindow.length) return null;
-    return {
-      value: inWindow.reduce((sum, d) => sum + d.power, 0) / inWindow.length,
-      startTime: earliest,
-      endTime: latest,
-    };
+    const first = chartData[0].time;
+    const last = chartData[chartData.length - 1].time;
+    const segments: { startTime: number; endTime: number; value: number }[] = [];
+
+    for (let start = first; start < last; start += windowMs) {
+      const end = start + windowMs;
+      const inWindow = chartData.filter((d) => d.time >= start && d.time < end);
+      if (!inWindow.length) continue;
+      const avg = inWindow.reduce((sum, d) => sum + d.power, 0) / inWindow.length;
+      segments.push({ startTime: start, endTime: end, value: avg });
+    }
+    return segments;
   }, [chartData, avgWindow]);
   
   const timeLabelToDate = useMemo(() => {
@@ -706,23 +709,21 @@ export const PrototypeChart = forwardRef<
                   isAnimationActive={false}
                 />
               )}
-              {avgPower && showPower && (
+              {showPower && avgSegments.map((seg, i) => (
                 <ReferenceLine
+                  key={i}
                   segment={[
-                    { x: avgPower.startTime, y: avgPower.value },
-                    { x: avgPower.endTime, y: avgPower.value },
+                    { x: seg.startTime, y: seg.value },
+                    { x: seg.endTime, y: seg.value },
                   ]}
                   stroke={POWER_LINE_COLOR}
                   strokeDasharray="6 3"
                   strokeWidth={2}
-                  label={{
-                    value: `Prom ${avgWindow}min: ${avgPower.value.toFixed(3)}W`,
-                    position: "insideTopRight",
-                    fontSize: 11,
-                    fill: POWER_LINE_COLOR,
-                  }}
-                />
-              )}
+                  label={false}
+                >
+                  <title>{`Prom ${avgWindow}min: ${seg.value.toFixed(3)}W`}</title>
+                </ReferenceLine>
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
