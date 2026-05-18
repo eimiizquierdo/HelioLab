@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getFirestore } from "firebase-admin/firestore";
-import type { ChatAsMessage } from "@/lib/types/frontend-types";
+import type { ChatAsMessage } from "@/lib/types/frontend-data-model";
 
 const MESSAGE_BATCH_SIZE = process.env.MESSAGE_BATCH_SIZE
   ? parseInt(process.env.MESSAGE_BATCH_SIZE)
@@ -36,7 +36,7 @@ export async function POST(
   const chatSnap = await chatRef.get();
 
   if (!chatSnap.exists) {
-    return NextResponse.json({ error: "Chat not found" }, { status: 404 });
+    return NextResponse.json({ messages: [] }, { status: 200 });
   }
 
   let query = db
