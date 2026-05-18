@@ -213,23 +213,32 @@ export const PrototypeChart = forwardRef<
     return map;
   }, [chartData]);
 
+    const [domainMin, domainMax] = useMemo(() => {
+    if (domain) return domain;
+    const max = chartData.length
+      ? chartData[chartData.length - 1].time
+      : Date.now();
+    const min = max - WINDOW_HOURS * 60 * 60 * 1000;
+    return [min, max];
+  }, [chartData, domain]);
+
   const avatarPositions = useMemo(() => {
     if (!chartData.length) return [];
-    const minTime = chartData[0].time;
-    const maxTime = chartData[chartData.length - 1].time;
-    const range = maxTime - minTime;
-    return highlights.map((h) => {
+    const range = domainMax - domainMin;
+    if (range === 0) return [];
+    return highlights.flatMap((h) => {
       const start = new Date(h.start_date).getTime();
       const end = new Date(h.end_date).getTime();
       const center = (start + end) / 2;
-      const percent = ((center - minTime) / range) * 100;
-      return {
+      if (center < domainMin || center > domainMax) return [];
+      const percent = ((center - domainMin) / range) * 100;
+      return [{
         chatId: h.chat,
         percent: Math.max(2, Math.min(98, percent)),
         profilePicture: h.creator_profile_picture,
-      };
+      }];
     });
-  }, [highlights, chartData]);
+  }, [highlights, domainMin, domainMax]);
 
   // ── Canvas drawing ──────────────────────────────────────────────────────
 
@@ -431,15 +440,6 @@ export const PrototypeChart = forwardRef<
     );
     if (hit) handleHighlightClick(hit.chatId);
   }
-
-  const [domainMin, domainMax] = useMemo(() => {
-    if (domain) return domain;
-    const max = chartData.length
-      ? chartData[chartData.length - 1].time
-      : Date.now();
-    const min = max - WINDOW_HOURS * 60 * 60 * 1000;
-    return [min, max];
-  }, [chartData, domain]);
 
   // ── X-axis ticks ──────────────────────────────────────────────────────
   // Three tiers of labels (highest wins when two ticks collide):
@@ -758,7 +758,7 @@ export const PrototypeChart = forwardRef<
       </div>
 
       {avatarPositions.length > 0 && (
-        <div className="relative h-10 mx-4">
+        <div className="relative h-10 mx-4 overflow-hidden">
           {avatarPositions.map((ap) => (
             <button
               key={ap.chatId}

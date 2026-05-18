@@ -8,9 +8,9 @@ import {
   unfollowChat,
   apiEndpoint,
 } from "@/lib/client-api"
-import type { UserLocal } from "@/lib/types/frontend-types"
-import type { ChatAsMessage } from "@/lib/types/frontend-types"
-import type { FollowedChat } from "@/lib/types/backend-types"
+import type { FrontendUser } from "@/lib/types/frontend-data-model"
+import type { ChatAsMessage } from "@/lib/types/frontend-data-model"
+import type { FollowedChat } from "@/lib/types/backend-data-model"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils"
 
 interface ChatRoomProps {
   chatId: string
-  currentUser: UserLocal
+  currentUser: FrontendUser
 }
 
 function toDate(ts: unknown): Date {
@@ -77,12 +77,14 @@ export function ChatRoom({ chatId, currentUser }: ChatRoomProps) {
   const [followedChats, setFollowedChats] = useState<FollowedChat[]>([])
   const [isPending, startTransition] = useTransition()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Initial load
   useEffect(() => {
-    fetchMessages(chatId, currentUser.id).then((msgs) =>
-      setMessages([...msgs].reverse())
-    )
+    setLoadError(null)
+    fetchMessages(chatId, currentUser.id)
+      .then((msgs) => setMessages([...msgs].reverse()))
+      .catch((err) => setLoadError(err?.message ?? "Error al cargar mensajes"))
 
     getFollowedChats({ userId: currentUser.id }).then((fcs) => {
       setFollowedChats(fcs)
@@ -92,9 +94,10 @@ export function ChatRoom({ chatId, currentUser }: ChatRoomProps) {
 
   // Scroll to bottom on new messages
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
+    const viewport = scrollRef.current?.querySelector<HTMLDivElement>(
+      "[data-slot='scroll-area-viewport']"
+    )
+    if (viewport) viewport.scrollTop = viewport.scrollHeight
   }, [messages])
 
   async function handleSend(e: React.FormEvent) {
@@ -183,6 +186,11 @@ export function ChatRoom({ chatId, currentUser }: ChatRoomProps) {
       {/* Messages */}
       <ScrollArea className="flex-1" ref={scrollRef}>
         <div className="flex flex-col gap-4 p-6">
+          {loadError && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {loadError}
+            </div>
+          )}
           {messages.map((msg, i) => {
             const prevMsg = messages[i - 1]
             const showDate =
