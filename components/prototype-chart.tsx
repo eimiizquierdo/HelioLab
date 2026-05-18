@@ -292,8 +292,8 @@ export const PrototypeChart = forwardRef<
     }
 
     const containerWidth = container.clientWidth;
-    const minTime = chartData[0].time;
-    const maxTime = chartData[chartData.length - 1].time;
+    const minTime = domainMin;
+    const maxTime = domainMax;
     const range = maxTime - minTime;
     if (range === 0) return;
 
