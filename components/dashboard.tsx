@@ -12,6 +12,7 @@ import { ChatsFeed } from "@/components/chats-feed"
 import { ChartCommentBar } from "@/components/chart-comment-bar"
 import { ConnectionsPanel } from "@/components/connections-panel"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { SolarScene } from "@/components/solar-scene"
 
 interface DashboardProps {
   currentUser: FrontendUser
@@ -233,6 +234,7 @@ export function Dashboard({
           />
         )}
 
+        <SolarScene />
         <ChatsFeed chats={feed} />
       </div>
 
