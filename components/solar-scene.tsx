@@ -290,8 +290,8 @@ export function SolarScene() {
         const pts: THREE.Vector3[] = []
         const data: (ReturnType<typeof solarAngles> & { h: number })[] = []
 
-        for (let step = 0; step <= 240; step++) {
-          const h = (step / 240) * 24
+        for (let step = 0; step <= 288; step++) {
+          const h = (step / 288) * 24
           const angles = solarAngles(n, h)
           const { x, y, z } = solarToXYZ(angles.elev, angles.az)
           pts.push(new THREE.Vector3(x, y, z))
@@ -319,7 +319,7 @@ export function SolarScene() {
           scene.add(nightLine)
         }
 
-        for (let i = 0; i < pts.length; i += 4) {
+        for (let i = 0; i < pts.length; i += 1) {
           const mesh = new THREE.Mesh(
             new THREE.SphereGeometry(0.18, 8, 8),
             new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
@@ -436,8 +436,12 @@ export function SolarScene() {
           tooltipEl.querySelector<HTMLElement>("[data-tt-theta]")!.textContent =
             d.aboveHorizon ? (d.theta * 180 / Math.PI).toFixed(2) + "\u00b0" : "\u2014"
           tooltipEl.style.display = "block"
-          tooltipEl.style.left    = (e.clientX - rect.left + 16) + "px"
-          tooltipEl.style.top     = (e.clientY - rect.top  - 20) + "px"
+          const ttW = tooltipEl.offsetWidth  || 180
+          const ttH = tooltipEl.offsetHeight || 110
+          const relX = e.clientX - rect.left
+          const relY = e.clientY - rect.top
+          tooltipEl.style.left = (relX + ttW + 20 > rect.width  ? relX - ttW - 8 : relX + 16) + "px"
+          tooltipEl.style.top  = (relY - ttH - 8 < 0            ? relY + 16      : relY - ttH - 8) + "px"
         } else {
           tooltipEl.style.display = "none"
         }
@@ -451,7 +455,15 @@ export function SolarScene() {
       }
       animate()
 
-      intervalRef.current = setInterval(() => updateSunPosition(), 30_000)
+      let lastDay = new Date().getDate()
+      intervalRef.current = setInterval(() => {
+        const now = new Date()
+        if (now.getDate() !== lastDay) {
+          lastDay = now.getDate()
+          buildTrajectory(now)
+        }
+        updateSunPosition()
+      }, 30_000)
 
       function onResize() {
         if (!container) return
