@@ -565,14 +565,6 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
               <RefreshCcw className="w-3 h-3" />
               Restaurar
             </button>
-            {isOwner && (
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs text-green-600 hover:bg-green-600/10 transition-colors disabled:opacity-50">
-                <Save className="w-3 h-3" />
-                {saving ? "Guardando..." : "Guardar como predeterminado"}
-              </button>
-            )}
-            {saveMsg && <span className="text-xs text-muted-foreground">{saveMsg}</span>}
           </div>
         </div>
       )}
