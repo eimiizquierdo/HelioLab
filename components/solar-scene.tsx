@@ -20,6 +20,7 @@ function solarAngles(n: number, h: number, lat: number, lon: number, tz: number,
   const B     = ((360 / 365) * (n - 81)) * D2R
   const Et    = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B)
   const lstm  = 15 * tz
+  // TC = 4*(lon - lstm) + Et  (Berrios validacion p.4: longitud oeste negativa)
   const TC    = 4 * (lon - lstm) + Et
   const tSol  = h + TC / 60
   const omega = 15 * (tSol - 12) * D2R
@@ -74,19 +75,13 @@ type SolarControls = {
 
 interface SolarSceneProps {
   selectedDate?: Date
-  defaultConfig?: SolarConfig   // <-- opcional
+  defaultConfig?: SolarConfig
   prototypeId: string
   currentUserId: string
   ownerId: string
 }
 
 export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUserId, ownerId }: SolarSceneProps) {
-  
-  if (!defaultConfig) return (
-    <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-      Este prototipo no tiene configuración solar. Contacta al administrador.
-    </div>
-  )
   const mountRef    = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<SolarControls | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -94,7 +89,8 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
 
   // Panel de variables
   const [showPanel, setShowPanel]   = useState(false)
-  const [formValues, setFormValues] = useState<SolarConfig>(defaultConfig)
+  const EMPTY_CONFIG: SolarConfig = { lat: 0, lon: 0, timezone: 0, beta: 0 }
+  const [formValues, setFormValues] = useState<SolarConfig>(defaultConfig ?? EMPTY_CONFIG)
   const [saving, setSaving]         = useState(false)
   const [saveMsg, setSaveMsg]       = useState("")
 
@@ -108,8 +104,8 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
 
   // Restaurar valores del prototipo
   function handleRestore() {
-    setFormValues(defaultConfig)
-    controlsRef.current?.setConfig(defaultConfig)
+    setFormValues(defaultConfig ?? EMPTY_CONFIG)
+    controlsRef.current?.setConfig(defaultConfig ?? EMPTY_CONFIG)
     controlsRef.current?.reset()
     setShowPanel(false)
   }
@@ -252,7 +248,7 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
       })
 
       // Config activa (mutable desde botones)
-      let cfg: SolarConfig = { ...defaultConfig }
+      let cfg: SolarConfig = { ...(defaultConfig ?? EMPTY_CONFIG) }
 
       const BETA = cfg.beta * D2R
       const AP   = AP_DEG  * D2R
@@ -486,6 +482,11 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
     if (selectedDate && controlsRef.current) controlsRef.current.setDate(selectedDate)
   }, [selectedDate])
 
+  if (!defaultConfig) return (
+    <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+      Este prototipo no tiene configuracion solar. Contacta al administrador.</div>
+  )
+
   const inputClass = "w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
   const btnClass   = "flex items-center justify-center w-8 h-8 rounded-md border border-border bg-card/80 text-muted-foreground hover:bg-muted hover:text-card-foreground transition-colors backdrop-blur-sm"
 
@@ -496,7 +497,7 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-card-foreground">Posicion Solar 3D</span>
           <span className="text-xs text-muted-foreground">
-            lat {defaultConfig.lat} | lon {defaultConfig.lon} | beta={defaultConfig.beta} | TZ={defaultConfig.timezone}
+            lat {defaultConfig?.lat ?? "—"} | lon {defaultConfig?.lon ?? "—"} | beta={defaultConfig?.beta ?? "—"} | TZ={defaultConfig?.timezone ?? "—"}
           </span>
         </div>
         <div className="flex items-center gap-3">

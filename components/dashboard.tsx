@@ -235,7 +235,13 @@ export function Dashboard({
         )}
 
         <SolarScene
-          selectedDate={...}
+          selectedDate={
+            activePrototype?.data.cursor instanceof Date
+              ? activePrototype.data.cursor
+              : activePrototype?.data.cursor
+                ? new Date(activePrototype.data.cursor)
+                : undefined
+          }
           defaultConfig={activePrototype?.solarConfig}
           prototypeId={activePrototype?.id ?? ""}
           currentUserId={currentUser.id}
