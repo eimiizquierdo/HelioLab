@@ -19,7 +19,8 @@ function solarAngles(n: number, h: number, lat: number, lon: number, tz: number,
   const decl  = 23.45 * D2R * Math.sin((360 / 365) * (284 + n) * D2R)
   const B     = ((360 / 365) * (n - 81)) * D2R
   const Et    = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B)
-  const TC    = 4 * (15 * tz - lon) + Et
+  const lstm  = 15 * tz
+  const TC    = 4 * (lon - lstm) + Et
   const tSol  = h + TC / 60
   const omega = 15 * (tSol - 12) * D2R
   const sE    = -Math.cos(decl) * Math.sin(omega)
@@ -73,13 +74,19 @@ type SolarControls = {
 
 interface SolarSceneProps {
   selectedDate?: Date
-  defaultConfig: SolarConfig
+  defaultConfig?: SolarConfig   // <-- opcional
   prototypeId: string
   currentUserId: string
   ownerId: string
 }
 
 export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUserId, ownerId }: SolarSceneProps) {
+  
+  if (!defaultConfig) return (
+    <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+      Este prototipo no tiene configuración solar. Contacta al administrador.
+    </div>
+  )
   const mountRef    = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<SolarControls | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -557,6 +564,14 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
               <RefreshCcw className="w-3 h-3" />
               Restaurar
             </button>
+            {isOwner && (
+              <button onClick={handleSave} disabled={saving}
+                className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs text-green-600 hover:bg-green-600/10 transition-colors disabled:opacity-50">
+                <Save className="w-3 h-3" />
+                {saving ? "Guardando..." : "Guardar como predeterminado"}
+              </button>
+            )}
+            {saveMsg && <span className="text-xs text-muted-foreground">{saveMsg}</span>}
           </div>
         </div>
       )}

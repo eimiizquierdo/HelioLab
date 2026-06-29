@@ -75,7 +75,7 @@ export type FrontendPrototype = {
         profile_picture: Url;
     };
     /** Configuracion solar del prototipo */
-    solarConfig: {
+    solarConfig?: {
         lat: number;
         lon: number;
         timezone: number;
