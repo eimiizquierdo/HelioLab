@@ -28,10 +28,17 @@ export async function POST(req: NextRequest) {
       const frontendPrototype: FrontendPrototype = {
         id: doc.id,
         label: d.label,
+        ownerId: ownerRef.id,
         owner: {
           name: ownerData?.name ?? "",
           full_name: `${ownerData?.name ?? ""} ${ownerData?.last_name ?? ""}`.trim(),
           profile_picture: ownerData?.profile_picture ?? "",
+        },
+        solarConfig: {
+          lat:      typeof d.lat      === "number" ? d.lat      : 20.39,
+          lon:      typeof d.lon      === "number" ? d.lon      : -99.99,
+          timezone: typeof d.timezone === "number" ? d.timezone : -6,
+          beta:     typeof d.beta     === "number" ? d.beta     : 21,
         },
         is_loading: false,
         data: {

@@ -68,19 +68,23 @@ export type PrototypeData = {
 export type FrontendPrototype = {
     id: UtilityReference;
     label: string;
+    ownerId: UtilityReference;
     owner: {
         name: string;
         full_name: string;
         profile_picture: Url;
     };
-    // scroll
-    // window
+    /** Configuracion solar del prototipo */
+    solarConfig: {
+        lat: number;
+        lon: number;
+        timezone: number;
+        beta: number;
+    };
     is_loading: boolean;
 
     data: {
-        /** The latest time that the cursor can reach */
         window_upper_bound: UtilityTimestamp;
-        /** The earliest time that the cursor can reach */
         window_lower_bound: UtilityTimestamp;
         cursor: UtilityTimestamp;
         cursor_updates_automatically: boolean;

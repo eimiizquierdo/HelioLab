@@ -1,35 +1,30 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Settings, X, Save, RefreshCcw } from "lucide-react"
 
-const LAT_DEG  = 20.39
-const LON_DEG  = -99.99
-const TZ       = -6
-const BETA_DEG = 21
-const AP_DEG   = 180
-const R        = 8
-
-const D2R = Math.PI / 180
-const LAT  = LAT_DEG  * D2R
-const BETA = BETA_DEG * D2R
-const AP   = AP_DEG   * D2R
+const AP_DEG = 180
+const D2R    = Math.PI / 180
+const R      = 8
 
 function dayOfYear(date: Date): number {
   const start = new Date(date.getFullYear(), 0, 1)
   return Math.floor((date.getTime() - start.getTime()) / 86400000) + 1
 }
 
-function solarAngles(n: number, h: number) {
+function solarAngles(n: number, h: number, lat: number, lon: number, tz: number, beta: number) {
+  const LAT   = lat  * D2R
+  const BETA  = beta * D2R
+  const AP    = AP_DEG * D2R
   const decl  = 23.45 * D2R * Math.sin((360 / 365) * (284 + n) * D2R)
   const B     = ((360 / 365) * (n - 81)) * D2R
   const Et    = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B)
-  const TC    = 4 * (15 * TZ - LON_DEG) + Et
+  const TC    = 4 * (15 * tz - lon) + Et
   const tSol  = h + TC / 60
   const omega = 15 * (tSol - 12) * D2R
   const sE    = -Math.cos(decl) * Math.sin(omega)
-  const sN    =  Math.cos(LAT) * Math.sin(decl) - Math.sin(LAT) * Math.cos(decl) * Math.cos(omega)
-  const sU    =  Math.sin(LAT) * Math.sin(decl) + Math.cos(LAT) * Math.cos(decl) * Math.cos(omega)
+  const sN    =  Math.cos(LAT)  * Math.sin(decl) - Math.sin(LAT) * Math.cos(decl) * Math.cos(omega)
+  const sU    =  Math.sin(LAT)  * Math.sin(decl) + Math.cos(LAT) * Math.cos(decl) * Math.cos(omega)
   const elev  = Math.asin(Math.max(-1, Math.min(1, sU)))
   let   az    = Math.atan2(sE, sN)
   if (az < 0) az += 2 * Math.PI
@@ -55,38 +50,85 @@ function getHoraLabel(h: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
 }
 
-// Color de fondo segun elevacion solar actual
 function skyColor(elevDeg: number): string {
-  if (elevDeg < -12)  return "#020510"  // noche cerrada
-  if (elevDeg < -6)   return "#060d1f"  // noche astronomica
-  if (elevDeg < 0)    return "#0d1a3a"  // noche civil
-  if (elevDeg < 4)    return "#1a2a5a"  // amanecer/atardecer azul
-  if (elevDeg < 10)   return "#b05a1a"  // amanecer/atardecer naranja
-  if (elevDeg < 18)   return "#d4814a"  // alba/crep. naranjo claro
-  if (elevDeg < 30)   return "#6090c8"  // dia temprano, azul palido
-  return "#4a7abf"                       // dia pleno, azul
+  if (elevDeg < -12) return "#020510"
+  if (elevDeg < -6)  return "#060d1f"
+  if (elevDeg < 0)   return "#0d1a3a"
+  if (elevDeg < 4)   return "#1a2a5a"
+  if (elevDeg < 10)  return "#b05a1a"
+  if (elevDeg < 18)  return "#d4814a"
+  if (elevDeg < 30)  return "#6090c8"
+  return "#4a7abf"
 }
 
+type SolarConfig = { lat: number; lon: number; timezone: number; beta: number }
 type SolarControls = {
-  zoomIn: () => void
-  zoomOut: () => void
-  rotateLeft: () => void
-  rotateRight: () => void
-  rotateUp: () => void
-  rotateDown: () => void
+  zoomIn: () => void; zoomOut: () => void
+  rotateLeft: () => void; rotateRight: () => void
+  rotateUp: () => void; rotateDown: () => void
   reset: () => void
   setDate: (date: Date) => void
+  setConfig: (cfg: SolarConfig) => void
 }
 
 interface SolarSceneProps {
   selectedDate?: Date
+  defaultConfig: SolarConfig
+  prototypeId: string
+  currentUserId: string
+  ownerId: string
 }
 
-export function SolarScene({ selectedDate }: SolarSceneProps) {
+export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUserId, ownerId }: SolarSceneProps) {
   const mountRef    = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<SolarControls | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const disposeRef  = useRef<(() => void) | null>(null)
+
+  // Panel de variables
+  const [showPanel, setShowPanel]   = useState(false)
+  const [formValues, setFormValues] = useState<SolarConfig>(defaultConfig)
+  const [saving, setSaving]         = useState(false)
+  const [saveMsg, setSaveMsg]       = useState("")
+
+  const isOwner = currentUserId === ownerId
+
+  // Aplicar cambios temporales al grafico
+  function handleApply() {
+    controlsRef.current?.setConfig(formValues)
+    setShowPanel(false)
+  }
+
+  // Restaurar valores del prototipo
+  function handleRestore() {
+    setFormValues(defaultConfig)
+    controlsRef.current?.setConfig(defaultConfig)
+    controlsRef.current?.reset()
+    setShowPanel(false)
+  }
+
+  // Guardar en Firestore (solo dueno)
+  async function handleSave() {
+    setSaving(true)
+    setSaveMsg("")
+    try {
+      const res = await fetch(`/api/prototype/${prototypeId}/update_solar_config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUserId, ...formValues }),
+      })
+      if (res.ok) {
+        setSaveMsg("Guardado correctamente")
+        controlsRef.current?.setConfig(formValues)
+      } else {
+        setSaveMsg("Error al guardar")
+      }
+    } catch {
+      setSaveMsg("Error de conexion")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     if (!mountRef.current) return
@@ -100,13 +142,10 @@ export function SolarScene({ selectedDate }: SolarSceneProps) {
       const renderer = new THREE.WebGLRenderer({ antialias: true })
       renderer.setPixelRatio(window.devicePixelRatio)
       renderer.setSize(W, H)
-      renderer.shadowMap.enabled = true
       container.appendChild(renderer.domElement)
 
-      const scene = new THREE.Scene()
-      const bgColor = new THREE.Color(0x020510)
-      scene.background = bgColor
-
+      const scene  = new THREE.Scene()
+      scene.background = new THREE.Color(0x020510)
       const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 200)
 
       scene.add(new THREE.AmbientLight(0x203060, 1.4))
@@ -115,263 +154,207 @@ export function SolarScene({ selectedDate }: SolarSceneProps) {
       scene.add(dirLight)
 
       // Plano base
-      const baseMesh = new THREE.Mesh(
+      const base = new THREE.Mesh(
         new THREE.CircleGeometry(R + 2, 64),
         new THREE.MeshStandardMaterial({ color: 0x0d1520, roughness: 0.9 })
       )
-      baseMesh.rotation.x = -Math.PI / 2
-      scene.add(baseMesh)
+      base.rotation.x = -Math.PI / 2
+      scene.add(base)
 
       // Cupulas
-      scene.add(new THREE.Mesh(
-        new THREE.SphereGeometry(R, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: 0x0a1830, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
-      ))
-      scene.add(new THREE.Mesh(
-        new THREE.SphereGeometry(R, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: 0x1a3060, wireframe: true, transparent: true, opacity: 0.18 })
-      ))
-      scene.add(new THREE.Mesh(
-        new THREE.SphereGeometry(R, 48, 24, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: 0x0a1428, transparent: true, opacity: 0.28, side: THREE.DoubleSide })
-      ))
-      scene.add(new THREE.Mesh(
-        new THREE.SphereGeometry(R, 24, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: 0x1a3a70, wireframe: true, transparent: true, opacity: 0.28 })
-      ))
+      scene.add(new THREE.Mesh(new THREE.SphereGeometry(R,48,24,0,Math.PI*2,0,Math.PI/2),
+        new THREE.MeshBasicMaterial({ color:0x0a1830, transparent:true, opacity:0.15, side:THREE.DoubleSide })))
+      scene.add(new THREE.Mesh(new THREE.SphereGeometry(R,24,12,0,Math.PI*2,0,Math.PI/2),
+        new THREE.MeshBasicMaterial({ color:0x1a3060, wireframe:true, transparent:true, opacity:0.18 })))
+      scene.add(new THREE.Mesh(new THREE.SphereGeometry(R,48,24,0,Math.PI*2,Math.PI/2,Math.PI/2),
+        new THREE.MeshBasicMaterial({ color:0x0a1428, transparent:true, opacity:0.28, side:THREE.DoubleSide })))
+      scene.add(new THREE.Mesh(new THREE.SphereGeometry(R,24,12,0,Math.PI*2,Math.PI/2,Math.PI/2),
+        new THREE.MeshBasicMaterial({ color:0x1a3a70, wireframe:true, transparent:true, opacity:0.28 })))
 
-      // Etiquetas cardinales
-      function makeLabel(text: string, pos: { x: number; y: number; z: number }) {
+      // Etiquetas
+      function makeLabel(text: string, pos: {x:number;y:number;z:number}) {
         const canvas = document.createElement("canvas")
         canvas.width = 128; canvas.height = 64
         const ctx = canvas.getContext("2d")!
-        ctx.font = "bold 40px Segoe UI"
-        ctx.fillStyle = "#6699ff"
-        ctx.textAlign = "center"
-        ctx.textBaseline = "middle"
+        ctx.font = "bold 40px Segoe UI"; ctx.fillStyle = "#6699ff"
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"
         ctx.fillText(text, 64, 32)
-        const sprite = new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true })
-        )
-        sprite.position.set(pos.x, pos.y, pos.z)
-        sprite.scale.set(1.4, 0.7, 1)
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent:true }))
+        sprite.position.set(pos.x,pos.y,pos.z); sprite.scale.set(1.4,0.7,1)
         return sprite
       }
-      scene.add(makeLabel("N", { x: 0,         y: 0.3, z: -(R + 0.8) }))
-      scene.add(makeLabel("S", { x: 0,         y: 0.3, z:  (R + 0.8) }))
-      scene.add(makeLabel("E", { x:  R + 0.8,  y: 0.3, z: 0 }))
-      scene.add(makeLabel("O", { x: -(R + 0.8),y: 0.3, z: 0 }))
+      scene.add(makeLabel("N",{x:0,      y:0.3,z:-(R+0.8)}))
+      scene.add(makeLabel("S",{x:0,      y:0.3,z: (R+0.8)}))
+      scene.add(makeLabel("E",{x: R+0.8, y:0.3,z:0}))
+      scene.add(makeLabel("O",{x:-(R+0.8),y:0.3,z:0}))
 
-      const cardMat = new THREE.LineBasicMaterial({ color: 0x1a3060, transparent: true, opacity: 0.5 });
-      [[0,0,-R,0,0,R],[-R,0,0,R,0,0]].forEach((p) => {
+      const cardMat = new THREE.LineBasicMaterial({ color:0x1a3060, transparent:true, opacity:0.5 });
+      [[0,0,-R,0,0,R],[-R,0,0,R,0,0]].forEach(p => {
         scene.add(new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(p[0],p[1],p[2]),
-            new THREE.Vector3(p[3],p[4],p[5])
-          ]),
+          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(p[0],p[1],p[2]),new THREE.Vector3(p[3],p[4],p[5])]),
           cardMat
         ))
       })
 
       // Modelo CPV
-      const protoGroup   = new THREE.Group()
-      const darkMat  = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.7, metalness: 0.3 })
-      const metalMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.4, metalness: 0.7 })
-      const glassMat = new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.22, roughness: 0.05, side: THREE.DoubleSide })
-      const panelMat = new THREE.MeshStandardMaterial({ color: 0x1a2a44, roughness: 0.5, metalness: 0.3, emissive: new THREE.Color(0x050e1e) })
-      const frameMat = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.5, metalness: 0.6 })
+      const protoGroup = new THREE.Group()
+      const darkMat  = new THREE.MeshStandardMaterial({ color:0x111318, roughness:0.7, metalness:0.3 })
+      const metalMat = new THREE.MeshStandardMaterial({ color:0x556677, roughness:0.4, metalness:0.7 })
+      const glassMat = new THREE.MeshStandardMaterial({ color:0x88aacc, transparent:true, opacity:0.22, roughness:0.05, side:THREE.DoubleSide })
+      const panelMat = new THREE.MeshStandardMaterial({ color:0x1a2a44, roughness:0.5, metalness:0.3, emissive:new THREE.Color(0x050e1e) })
+      const frameMat = new THREE.MeshStandardMaterial({ color:0x334455, roughness:0.5, metalness:0.6 })
+      const W2=2.8, D2=2.4, H2=0.18, wallH=0.55, wallT=0.05
 
-      const W2 = 2.8, D2 = 2.4, H2 = 0.18, wallH = 0.55, wallT = 0.05
+      const body = new THREE.Mesh(new THREE.BoxGeometry(W2,H2,D2), darkMat)
+      body.position.y = H2/2; protoGroup.add(body)
+      const topPlate = new THREE.Mesh(new THREE.BoxGeometry(W2,0.04,D2),
+        new THREE.MeshStandardMaterial({ color:0x0d1018, roughness:0.6, metalness:0.4 }))
+      topPlate.position.y = H2+0.02; protoGroup.add(topPlate)
 
-      const body = new THREE.Mesh(new THREE.BoxGeometry(W2, H2, D2), darkMat)
-      body.position.y = H2 / 2
-      protoGroup.add(body)
-
-      const topPlate = new THREE.Mesh(
-        new THREE.BoxGeometry(W2, 0.04, D2),
-        new THREE.MeshStandardMaterial({ color: 0x0d1018, roughness: 0.6, metalness: 0.4 })
-      )
-      topPlate.position.y = H2 + 0.02
-      protoGroup.add(topPlate)
-
-      const wallY = H2 + wallH / 2;
-      [-(D2/2 - wallT/2), D2/2 - wallT/2].forEach((zp) => {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(W2, wallH, wallT), glassMat)
-        wall.position.set(0, wallY, zp)
-        protoGroup.add(wall)
+      const wallY = H2+wallH/2;
+      [-(D2/2-wallT/2), D2/2-wallT/2].forEach(zp => {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(W2,wallH,wallT),glassMat); w.position.set(0,wallY,zp); protoGroup.add(w)
       });
-      [-(W2/2 - wallT/2), W2/2 - wallT/2].forEach((xp) => {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, D2), glassMat)
-        wall.position.set(xp, wallY, 0)
-        protoGroup.add(wall)
+      [-(W2/2-wallT/2), W2/2-wallT/2].forEach(xp => {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(wallT,wallH,D2),glassMat); w.position.set(xp,wallY,0); protoGroup.add(w)
       });
-      [[W2, wallT, 0, -(D2/2)],[W2, wallT, 0, D2/2],
-       [wallT, D2, -(W2/2), 0],[wallT, D2, W2/2, 0]
-      ].forEach(([fw, fd, xp, zp]) => {
-        const fm = new THREE.Mesh(new THREE.BoxGeometry(fw, 0.05, fd), frameMat)
-        fm.position.set(xp, H2 + wallH + 0.02, zp)
-        protoGroup.add(fm)
+      [[W2,wallT,0,-(D2/2)],[W2,wallT,0,D2/2],[wallT,D2,-(W2/2),0],[wallT,D2,W2/2,0]].forEach(([fw,fd,xp,zp]) => {
+        const fm = new THREE.Mesh(new THREE.BoxGeometry(fw,0.05,fd),frameMat); fm.position.set(xp,H2+wallH+0.02,zp); protoGroup.add(fm)
       })
 
-      function makeSolarPanel(width: number, height: number, nx: number, ny: number) {
-        const group = new THREE.Group()
-        group.add(new THREE.Mesh(new THREE.BoxGeometry(width + 0.06, height + 0.06, 0.04), metalMat))
-        group.add(new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.03), panelMat))
-        const cw = (width - 0.04) / nx
-        const ch = (height - 0.04) / ny
-        const gridMat = new THREE.MeshStandardMaterial({ color: 0x223366, roughness: 0.4, metalness: 0.2 })
-        for (let i = 0; i < nx; i++) {
-          for (let j = 0; j < ny; j++) {
-            const cell = new THREE.Mesh(new THREE.BoxGeometry(cw - 0.015, ch - 0.015, 0.025), gridMat)
-            cell.position.set(-width/2 + 0.02 + cw*(i+0.5), -height/2 + 0.02 + ch*(j+0.5), 0.01)
-            group.add(cell)
-          }
+      function makeSolarPanel(width:number, height:number, nx:number, ny:number) {
+        const g = new THREE.Group()
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(width+0.06,height+0.06,0.04),metalMat))
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(width,height,0.03),panelMat))
+        const cw=(width-0.04)/nx, ch=(height-0.04)/ny
+        const gm = new THREE.MeshStandardMaterial({ color:0x223366, roughness:0.4, metalness:0.2 })
+        for(let i=0;i<nx;i++) for(let j=0;j<ny;j++) {
+          const c = new THREE.Mesh(new THREE.BoxGeometry(cw-0.015,ch-0.015,0.025),gm)
+          c.position.set(-width/2+0.02+cw*(i+0.5),-height/2+0.02+ch*(j+0.5),0.01); g.add(c)
         }
-        return group
+        return g
       }
 
-      const panelL = makeSolarPanel(0.55, 0.75, 3, 4)
-      panelL.rotation.y = Math.PI / 2
-      panelL.position.set(-(W2/2 + 0.04), H2 + wallH/2 + 0.02, 0)
-      protoGroup.add(panelL)
-
-      const panelR = makeSolarPanel(0.55, 0.75, 3, 4)
-      panelR.rotation.y = -Math.PI / 2
-      panelR.position.set(W2/2 + 0.04, H2 + wallH/2 + 0.02, 0)
-      protoGroup.add(panelR);
-
-      [[-W2/2+0.12,-D2/2+0.12],[W2/2-0.12,-D2/2+0.12],
-       [-W2/2+0.12, D2/2-0.12],[W2/2-0.12, D2/2-0.12]
-      ].forEach(([lx, lz]) => {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.22, 8), metalMat)
-        leg.position.set(lx, 0.11, lz)
-        protoGroup.add(leg)
+      const pL = makeSolarPanel(0.55,0.75,3,4)
+      pL.rotation.y = Math.PI/2; pL.position.set(-(W2/2+0.04),H2+wallH/2+0.02,0); protoGroup.add(pL)
+      const pR = makeSolarPanel(0.55,0.75,3,4)
+      pR.rotation.y = -Math.PI/2; pR.position.set(W2/2+0.04,H2+wallH/2+0.02,0); protoGroup.add(pR);
+      [[-W2/2+0.12,-D2/2+0.12],[W2/2-0.12,-D2/2+0.12],[-W2/2+0.12,D2/2-0.12],[W2/2-0.12,D2/2-0.12]].forEach(([lx,lz]) => {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.22,8),metalMat)
+        leg.position.set(lx,0.11,lz); protoGroup.add(leg)
       })
 
+      // Config activa (mutable desde botones)
+      let cfg: SolarConfig = { ...defaultConfig }
+
+      const BETA = cfg.beta * D2R
+      const AP   = AP_DEG  * D2R
       protoGroup.rotation.x = BETA
-      protoGroup.position.set(0, 1.4, 0)
+      protoGroup.position.set(0,1.4,0)
       scene.add(protoGroup)
 
-      // Normal del panel
-      const NP = new THREE.Vector3(
-        Math.sin(BETA) * Math.sin(AP),
-        Math.cos(BETA),
-        Math.sin(BETA) * Math.cos(AP)
-      ).normalize()
-      scene.add(new THREE.ArrowHelper(NP, new THREE.Vector3(0, 1.9, 0), 2.0, 0x00ff88, 0.25, 0.12))
+      // Flecha normal (se recrea al cambiar beta)
+      let normalArrow: THREE.ArrowHelper | null = null
+      function updateNormalArrow() {
+        if (normalArrow) scene.remove(normalArrow)
+        const b = cfg.beta * D2R
+        const NP = new THREE.Vector3(
+          Math.sin(b)*Math.sin(AP), Math.cos(b), Math.sin(b)*Math.cos(AP)
+        ).normalize()
+        normalArrow = new THREE.ArrowHelper(NP, new THREE.Vector3(0,1.9,0), 2.0, 0x00ff88, 0.25, 0.12)
+        scene.add(normalArrow)
+      }
+      updateNormalArrow()
 
-      // Sol (mas grande: radio 0.35)
-      const sunMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.35, 16, 16),
-        new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: new THREE.Color(0xffaa00), emissiveIntensity: 1.8 })
-      )
-      const moonMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.18, 12, 12),
-        new THREE.MeshStandardMaterial({ color: 0xc0c8ff, emissive: new THREE.Color(0x8899ff), emissiveIntensity: 1.8 })
-      )
-      scene.add(sunMesh)
-      scene.add(moonMesh)
+      // Sol y luna
+      const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35,16,16),
+        new THREE.MeshStandardMaterial({ color:0xffe066, emissive:new THREE.Color(0xffaa00), emissiveIntensity:1.8 }))
+      const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18,12,12),
+        new THREE.MeshStandardMaterial({ color:0xc0c8ff, emissive:new THREE.Color(0x8899ff), emissiveIntensity:1.8 }))
+      scene.add(sunMesh); scene.add(moonMesh)
 
       // Trayectoria
-      let dayTube:   THREE.Mesh | null = null
-      let nightLine: THREE.Line | null = null
+      let dayTube:    THREE.Mesh | null = null
+      let nightLine:  THREE.Line | null = null
       let pickSpheres: THREE.Mesh[] = []
       let trajectoryPts:  THREE.Vector3[] = []
       let trajectoryData: (ReturnType<typeof solarAngles> & { h: number })[] = []
-      let activeDate = new Date()
 
       function clearTrajectory() {
-        if (dayTube)   { scene.remove(dayTube);   dayTube.geometry.dispose();   dayTube = null }
-        if (nightLine) { scene.remove(nightLine); nightLine.geometry.dispose(); nightLine = null }
-        pickSpheres.forEach((s) => scene.remove(s))
-        pickSpheres = []
+        if (dayTube)   { scene.remove(dayTube);   dayTube.geometry.dispose();   dayTube=null }
+        if (nightLine) { scene.remove(nightLine); nightLine.geometry.dispose(); nightLine=null }
+        pickSpheres.forEach(s => scene.remove(s)); pickSpheres=[]
       }
 
       function buildTrajectory(date: Date) {
-        activeDate = date
         clearTrajectory()
         const n = dayOfYear(date)
         const pts: THREE.Vector3[] = []
-        const data: (ReturnType<typeof solarAngles> & { h: number })[] = []
-
-        // 288 pasos = un punto cada 5 minutos exactos
-        for (let step = 0; step <= 288; step++) {
-          const h = (step / 288) * 24
-          const angles = solarAngles(n, h)
-          const { x, y, z } = solarToXYZ(angles.elev, angles.az)
-          pts.push(new THREE.Vector3(x, y, z))
-          data.push({ ...angles, h })
+        const data: (ReturnType<typeof solarAngles> & { h:number })[] = []
+        for (let step=0; step<=288; step++) {
+          const h = (step/288)*24
+          const angles = solarAngles(n, h, cfg.lat, cfg.lon, cfg.timezone, cfg.beta)
+          const {x,y,z} = solarToXYZ(angles.elev, angles.az)
+          pts.push(new THREE.Vector3(x,y,z))
+          data.push({...angles, h})
         }
-        trajectoryPts  = pts
-        trajectoryData = data
+        trajectoryPts=pts; trajectoryData=data
 
-        const dayPts = pts.filter((_, i) => data[i].aboveHorizon)
-        if (dayPts.length > 3) {
+        const dayPts = pts.filter((_,i) => data[i].aboveHorizon)
+        if (dayPts.length>3) {
           const curve = new THREE.CatmullRomCurve3(dayPts)
           dayTube = new THREE.Mesh(
-            new THREE.TubeGeometry(curve, dayPts.length * 2, 0.04, 8, false),
-            new THREE.MeshStandardMaterial({ color: 0xff8c00, emissive: new THREE.Color(0xcc4400), emissiveIntensity: 0.4, roughness: 0.4 })
+            new THREE.TubeGeometry(curve, dayPts.length*2, 0.04, 8, false),
+            new THREE.MeshStandardMaterial({ color:0xff8c00, emissive:new THREE.Color(0xcc4400), emissiveIntensity:0.4, roughness:0.4 })
           )
           scene.add(dayTube)
         }
-
-        const nightPts = pts.filter((_, i) => !data[i].aboveHorizon)
-        if (nightPts.length > 1) {
+        const nightPts = pts.filter((_,i) => !data[i].aboveHorizon)
+        if (nightPts.length>1) {
           nightLine = new THREE.Line(
             new THREE.BufferGeometry().setFromPoints(nightPts),
-            new THREE.LineBasicMaterial({ color: 0x5588ff, transparent: true, opacity: 0.85 })
+            new THREE.LineBasicMaterial({ color:0x5588ff, transparent:true, opacity:0.85 })
           )
           scene.add(nightLine)
         }
-
-        // Un punto cada 5 minutos (cada step)
-        for (let i = 0; i < pts.length; i++) {
-          const mesh = new THREE.Mesh(
-            new THREE.SphereGeometry(0.10, 6, 6),
-            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
-          )
-          mesh.position.copy(pts[i])
-          mesh.userData = data[i]
-          scene.add(mesh)
-          pickSpheres.push(mesh)
+        for (let i=0; i<pts.length; i++) {
+          const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.10,6,6),
+            new THREE.MeshBasicMaterial({ transparent:true, opacity:0 }))
+          mesh.position.copy(pts[i]); mesh.userData=data[i]
+          scene.add(mesh); pickSpheres.push(mesh)
         }
       }
 
-      // Posicion sol actual
+      let activeDate = new Date()
       let incidentLine: THREE.Line | null = null
 
       function updateSunPosition() {
         const now  = new Date()
-        const hNow = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600
+        const hNow = now.getHours() + now.getMinutes()/60 + now.getSeconds()/3600
+        const todayN   = dayOfYear(now)
+        const todayAng = solarAngles(todayN, hNow, cfg.lat, cfg.lon, cfg.timezone, cfg.beta)
+        scene.background = new THREE.Color(skyColor(todayAng.elev * 180/Math.PI))
 
-        // Fondo dinamico segun hora actual real (no la fecha del calendario)
-        const todayN  = dayOfYear(now)
-        const todayAng = solarAngles(todayN, hNow)
-        const elevDeg  = todayAng.elev * 180 / Math.PI
-        scene.background = new THREE.Color(skyColor(elevDeg))
-
-        // Posicion en la trayectoria del dia seleccionado
-        let bestIdx = 0, bestDiff = Infinity
-        for (let i = 0; i < trajectoryData.length; i++) {
+        let bestIdx=0, bestDiff=Infinity
+        for (let i=0; i<trajectoryData.length; i++) {
           const diff = Math.abs(trajectoryData[i].h - hNow)
-          if (diff < bestDiff) { bestDiff = diff; bestIdx = i }
+          if (diff<bestDiff) { bestDiff=diff; bestIdx=i }
         }
         const pt = trajectoryPts[bestIdx]
         const d  = trajectoryData[bestIdx]
-        if (!pt || !d) return
+        if (!pt||!d) return
 
         if (d.aboveHorizon) {
-          sunMesh.position.copy(pt); sunMesh.visible = true; moonMesh.visible = false
+          sunMesh.position.copy(pt); sunMesh.visible=true; moonMesh.visible=false
           dirLight.position.copy(pt)
         } else {
-          moonMesh.position.copy(pt); moonMesh.visible = true; sunMesh.visible = false
+          moonMesh.position.copy(pt); moonMesh.visible=true; sunMesh.visible=false
         }
-
         if (incidentLine) scene.remove(incidentLine)
         if (d.aboveHorizon) {
           incidentLine = new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints([pt.clone(), new THREE.Vector3(0, 1.9, 0)]),
-            new THREE.LineBasicMaterial({ color: 0xffee88, transparent: true, opacity: 0.45 })
+            new THREE.BufferGeometry().setFromPoints([pt.clone(), new THREE.Vector3(0,1.9,0)]),
+            new THREE.LineBasicMaterial({ color:0xffee88, transparent:true, opacity:0.45 })
           )
           scene.add(incidentLine)
         }
@@ -381,48 +364,53 @@ export function SolarScene({ selectedDate }: SolarSceneProps) {
       updateSunPosition()
 
       // Orbit controls
-      let isDragging = false, prevX = 0, prevY = 0
-      let theta2 = 0.8, phi2 = 0.42, radius2 = 18
-      const DEFAULT_THETA = 0.8, DEFAULT_PHI = 0.42, DEFAULT_RADIUS = 18
+      let isDragging=false, prevX=0, prevY=0
+      let theta2=0.8, phi2=0.42, radius2=18
+      const DT=0.8, DP=0.42, DR=18
 
       function updateCamera() {
         camera.position.set(
-          radius2 * Math.sin(phi2) * Math.sin(theta2),
-          radius2 * Math.cos(phi2),
-          radius2 * Math.sin(phi2) * Math.cos(theta2)
+          radius2*Math.sin(phi2)*Math.sin(theta2),
+          radius2*Math.cos(phi2),
+          radius2*Math.sin(phi2)*Math.cos(theta2)
         )
-        camera.lookAt(0, 1.6, 0)
+        camera.lookAt(0,1.6,0)
       }
       updateCamera()
 
-      renderer.domElement.addEventListener("mousedown", (e) => {
-        isDragging = true; prevX = e.clientX; prevY = e.clientY
-      })
-      window.addEventListener("mouseup", () => { isDragging = false })
-      renderer.domElement.addEventListener("mousemove", (e) => {
+      renderer.domElement.addEventListener("mousedown", e => { isDragging=true; prevX=e.clientX; prevY=e.clientY })
+      window.addEventListener("mouseup", () => { isDragging=false })
+      renderer.domElement.addEventListener("mousemove", e => {
         if (isDragging) {
-          theta2 -= (e.clientX - prevX) * 0.008
-          phi2 = Math.max(0.05, Math.min(Math.PI / 2.1, phi2 + (e.clientY - prevY) * 0.008))
-          prevX = e.clientX; prevY = e.clientY
-          updateCamera()
+          theta2 -= (e.clientX-prevX)*0.008
+          phi2 = Math.max(0.05, Math.min(Math.PI/2.1, phi2+(e.clientY-prevY)*0.008))
+          prevX=e.clientX; prevY=e.clientY; updateCamera()
         }
         handleHover(e)
       })
-      renderer.domElement.addEventListener("wheel", (e) => {
+      renderer.domElement.addEventListener("wheel", e => {
         e.preventDefault()
-        radius2 = Math.max(6, Math.min(40, radius2 + e.deltaY * 0.03))
+        radius2 = Math.max(6, Math.min(40, radius2+e.deltaY*0.03))
         updateCamera()
-      }, { passive: false })
+      }, { passive:false })
 
       controlsRef.current = {
-        zoomIn:      () => { radius2 = Math.max(6,  radius2 - 1.5); updateCamera() },
-        zoomOut:     () => { radius2 = Math.min(40, radius2 + 1.5); updateCamera() },
-        rotateLeft:  () => { theta2 -= 0.2; updateCamera() },
-        rotateRight: () => { theta2 += 0.2; updateCamera() },
-        rotateUp:    () => { phi2 = Math.max(0.05, phi2 - 0.12); updateCamera() },
-        rotateDown:  () => { phi2 = Math.min(Math.PI / 2.1, phi2 + 0.12); updateCamera() },
-        reset:       () => { theta2 = DEFAULT_THETA; phi2 = DEFAULT_PHI; radius2 = DEFAULT_RADIUS; updateCamera() },
-        setDate:     (date: Date) => { buildTrajectory(date); updateSunPosition() },
+        zoomIn:      () => { radius2=Math.max(6,  radius2-1.5); updateCamera() },
+        zoomOut:     () => { radius2=Math.min(40, radius2+1.5); updateCamera() },
+        rotateLeft:  () => { theta2-=0.2; updateCamera() },
+        rotateRight: () => { theta2+=0.2; updateCamera() },
+        rotateUp:    () => { phi2=Math.max(0.05, phi2-0.12); updateCamera() },
+        rotateDown:  () => { phi2=Math.min(Math.PI/2.1, phi2+0.12); updateCamera() },
+        reset:       () => { theta2=DT; phi2=DP; radius2=DR; updateCamera() },
+        setDate:     (date:Date) => { activeDate=date; buildTrajectory(date); updateSunPosition() },
+        setConfig:   (newCfg:SolarConfig) => {
+          cfg = { ...newCfg }
+          // Actualizar inclinacion del prototipo
+          protoGroup.rotation.x = cfg.beta * D2R
+          updateNormalArrow()
+          buildTrajectory(activeDate)
+          updateSunPosition()
+        },
       }
 
       // Raycasting / Tooltip
@@ -433,24 +421,22 @@ export function SolarScene({ selectedDate }: SolarSceneProps) {
         const tooltipEl = container.parentElement?.querySelector<HTMLDivElement>("[data-solar-tooltip]")
         if (!tooltipEl) return
         const rect = renderer.domElement.getBoundingClientRect()
-        mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1
-        mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1
+        mouse.x =  ((e.clientX-rect.left)/rect.width) *2-1
+        mouse.y = -((e.clientY-rect.top) /rect.height)*2+1
         raycaster.setFromCamera(mouse, camera)
         const hits = raycaster.intersectObjects(pickSpheres)
-        if (hits.length > 0) {
-          const d = hits[0].object.userData as ReturnType<typeof solarAngles> & { h: number }
+        if (hits.length>0) {
+          const d = hits[0].object.userData as ReturnType<typeof solarAngles> & { h:number }
           tooltipEl.querySelector<HTMLElement>("[data-tt-title]")!.textContent = d.aboveHorizon ? "Sol" : "Nocturno"
           tooltipEl.querySelector<HTMLElement>("[data-tt-hora]")!.textContent  = getHoraLabel(d.h)
-          tooltipEl.querySelector<HTMLElement>("[data-tt-elev]")!.textContent  = (d.elev  * 180 / Math.PI).toFixed(2) + "\u00b0"
-          tooltipEl.querySelector<HTMLElement>("[data-tt-az]")!.textContent    = (d.az    * 180 / Math.PI).toFixed(2) + "\u00b0"
+          tooltipEl.querySelector<HTMLElement>("[data-tt-elev]")!.textContent  = (d.elev *180/Math.PI).toFixed(2)+"\u00b0"
+          tooltipEl.querySelector<HTMLElement>("[data-tt-az]")!.textContent    = (d.az   *180/Math.PI).toFixed(2)+"\u00b0"
           tooltipEl.querySelector<HTMLElement>("[data-tt-theta]")!.textContent =
-            d.aboveHorizon ? (d.theta * 180 / Math.PI).toFixed(2) + "\u00b0" : "\u2014"
-          const ttW  = tooltipEl.offsetWidth  || 180
-          const ttH  = tooltipEl.offsetHeight || 110
-          const relX = e.clientX - rect.left
-          const relY = e.clientY - rect.top
-          tooltipEl.style.left    = (relX + ttW + 20 > rect.width  ? relX - ttW - 8 : relX + 16) + "px"
-          tooltipEl.style.top     = (relY - ttH - 8 < 0            ? relY + 16       : relY - ttH - 8) + "px"
+            d.aboveHorizon ? (d.theta*180/Math.PI).toFixed(2)+"\u00b0" : "\u2014"
+          const ttW=tooltipEl.offsetWidth||180, ttH=tooltipEl.offsetHeight||110
+          const relX=e.clientX-rect.left, relY=e.clientY-rect.top
+          tooltipEl.style.left = (relX+ttW+20>rect.width ? relX-ttW-8 : relX+16)+"px"
+          tooltipEl.style.top  = (relY-ttH-8<0           ? relY+16    : relY-ttH-8)+"px"
           tooltipEl.style.display = "block"
         } else {
           tooltipEl.style.display = "none"
@@ -458,37 +444,26 @@ export function SolarScene({ selectedDate }: SolarSceneProps) {
       }
 
       let animId: number
-      function animate() {
-        animId = requestAnimationFrame(animate)
-        renderer.render(scene, camera)
-      }
+      function animate() { animId=requestAnimationFrame(animate); renderer.render(scene,camera) }
       animate()
 
-      // Actualizar sol cada 30s; cambio de dia automatico
       let lastDay = new Date().getDate()
       intervalRef.current = setInterval(() => {
         const now = new Date()
-        if (now.getDate() !== lastDay) {
-          lastDay = now.getDate()
-          buildTrajectory(now)
-        }
+        if (now.getDate()!==lastDay) { lastDay=now.getDate(); buildTrajectory(now) }
         updateSunPosition()
       }, 30_000)
 
       function onResize() {
         if (!container) return
-        const W = container.clientWidth
-        const H = container.clientHeight
-        camera.aspect = W / H
-        camera.updateProjectionMatrix()
-        renderer.setSize(W, H)
+        const W=container.clientWidth, H=container.clientHeight
+        camera.aspect=W/H; camera.updateProjectionMatrix(); renderer.setSize(W,H)
       }
       window.addEventListener("resize", onResize)
 
       disposeRef.current = () => {
         cancelAnimationFrame(animId)
         window.removeEventListener("resize", onResize)
-        window.removeEventListener("mouseup", () => { isDragging = false })
         renderer.dispose()
         if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
       }
@@ -500,97 +475,138 @@ export function SolarScene({ selectedDate }: SolarSceneProps) {
     }
   }, [])
 
-  // Cuando cambia selectedDate desde el dashboard, actualizar la trayectoria
   useEffect(() => {
-    if (selectedDate && controlsRef.current) {
-      controlsRef.current.setDate(selectedDate)
-    }
+    if (selectedDate && controlsRef.current) controlsRef.current.setDate(selectedDate)
   }, [selectedDate])
 
-  const btnClass =
-    "flex items-center justify-center w-8 h-8 rounded-md border border-border bg-card/80 text-muted-foreground hover:bg-muted hover:text-card-foreground transition-colors backdrop-blur-sm"
+  const inputClass = "w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+  const btnClass   = "flex items-center justify-center w-8 h-8 rounded-md border border-border bg-card/80 text-muted-foreground hover:bg-muted hover:text-card-foreground transition-colors backdrop-blur-sm"
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-card-foreground">Posicion Solar 3D</span>
-          <span className="text-xs text-muted-foreground">San Juan del Rio | beta=21 | Az=180</span>
+          <span className="text-xs text-muted-foreground">
+            lat {defaultConfig.lat} | lon {defaultConfig.lon} | beta={defaultConfig.beta} | TZ={defaultConfig.timezone}
+          </span>
         </div>
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 h-0.5 bg-orange-500 rounded" />Diurna
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 h-0.5 bg-blue-400 rounded opacity-80" />Nocturna
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-300" />Sol actual
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-400" />Normal panel
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-orange-500 rounded" />Diurna</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-5 h-0.5 bg-blue-400 rounded opacity-80" />Nocturna</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-300" />Sol</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-green-400" />Normal</span>
+          </div>
+          {/* Boton modificar variables */}
+          <button
+            onClick={() => { setShowPanel(p => !p); setSaveMsg("") }}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Modificar variables
+          </button>
         </div>
       </div>
 
+      {/* Panel de variables */}
+      {showPanel && (
+        <div className="border-b border-border bg-muted/40 px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold text-foreground">Variables del modelo solar</span>
+            <button onClick={() => setShowPanel(false)} className="text-muted-foreground hover:text-foreground">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Latitud (phi)</label>
+              <input type="number" step="0.01" value={formValues.lat}
+                onChange={e => setFormValues(v => ({ ...v, lat: parseFloat(e.target.value) }))}
+                className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Longitud (lambda)</label>
+              <input type="number" step="0.01" value={formValues.lon}
+                onChange={e => setFormValues(v => ({ ...v, lon: parseFloat(e.target.value) }))}
+                className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Zona horaria (TZ)</label>
+              <input type="number" step="1" value={formValues.timezone}
+                onChange={e => setFormValues(v => ({ ...v, timezone: parseInt(e.target.value) }))}
+                className={inputClass} />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1">Inclinacion beta (deg)</label>
+              <input type="number" step="0.5" min="0" max="90" value={formValues.beta}
+                onChange={e => setFormValues(v => ({ ...v, beta: parseFloat(e.target.value) }))}
+                className={inputClass} />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mt-3">
+            <button onClick={handleApply}
+              className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+              Aplicar
+            </button>
+            <button onClick={handleRestore}
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <RefreshCcw className="w-3 h-3" />
+              Restaurar
+            </button>
+            {isOwner && (
+              <button onClick={handleSave} disabled={saving}
+                className="flex items-center gap-1.5 rounded-md border border-green-600 px-3 py-1.5 text-xs text-green-600 hover:bg-green-600/10 transition-colors disabled:opacity-50">
+                <Save className="w-3 h-3" />
+                {saving ? "Guardando..." : "Guardar como predeterminado"}
+              </button>
+            )}
+            {saveMsg && <span className="text-xs text-muted-foreground">{saveMsg}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Canvas */}
       <div className="relative" style={{ height: 420 }}>
         <div ref={mountRef} className="w-full h-full" />
 
         {/* Tooltip */}
-        <div
-          data-solar-tooltip
+        <div data-solar-tooltip
           className="absolute pointer-events-none z-10 rounded-lg border border-yellow-500/40 bg-card/95 px-3 py-2 text-xs shadow-lg min-w-[170px]"
-          style={{ display: "none" }}
-        >
+          style={{ display:"none" }}>
           <div className="font-bold text-yellow-400 mb-1.5 flex items-center gap-1">
-            <span>&#9728;</span>
-            <span data-tt-title />
+            <span>&#9728;</span><span data-tt-title />
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <span>Hora</span>
-            <span data-tt-hora className="font-semibold text-card-foreground" />
+            <span>Hora</span><span data-tt-hora className="font-semibold text-card-foreground" />
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <span>Elevacion</span>
-            <span data-tt-elev className="font-semibold text-card-foreground" />
+            <span>Elevacion</span><span data-tt-elev className="font-semibold text-card-foreground" />
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <span>Azimut</span>
-            <span data-tt-az className="font-semibold text-card-foreground" />
+            <span>Azimut</span><span data-tt-az className="font-semibold text-card-foreground" />
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <span>Angulo Ti</span>
-            <span data-tt-theta className="font-semibold text-card-foreground" />
+            <span>Angulo Ti</span><span data-tt-theta className="font-semibold text-card-foreground" />
           </div>
         </div>
 
         {/* Botones de control */}
         <div className="absolute bottom-8 right-3 flex flex-col gap-1 z-10">
-          <button className={btnClass} onClick={() => controlsRef.current?.zoomIn()} title="Acercar">
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <button className={btnClass} onClick={() => controlsRef.current?.zoomOut()} title="Alejar">
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
+          <button className={btnClass} onClick={() => controlsRef.current?.zoomIn()}><ZoomIn className="w-3.5 h-3.5" /></button>
+          <button className={btnClass} onClick={() => controlsRef.current?.zoomOut()}><ZoomOut className="w-3.5 h-3.5" /></button>
           <div className="h-px bg-border my-0.5" />
-          <button className={btnClass} onClick={() => controlsRef.current?.rotateUp()} title="Rotar arriba">
-            <ChevronUp className="w-3.5 h-3.5" />
-          </button>
+          <button className={btnClass} onClick={() => controlsRef.current?.rotateUp()}><ChevronUp className="w-3.5 h-3.5" /></button>
           <div className="flex gap-1">
-            <button className={btnClass} onClick={() => controlsRef.current?.rotateLeft()} title="Rotar izquierda">
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <button className={btnClass} onClick={() => controlsRef.current?.rotateRight()} title="Rotar derecha">
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <button className={btnClass} onClick={() => controlsRef.current?.rotateLeft()}><ChevronLeft className="w-3.5 h-3.5" /></button>
+            <button className={btnClass} onClick={() => controlsRef.current?.rotateRight()}><ChevronRight className="w-3.5 h-3.5" /></button>
           </div>
-          <button className={btnClass} onClick={() => controlsRef.current?.rotateDown()} title="Rotar abajo">
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
+          <button className={btnClass} onClick={() => controlsRef.current?.rotateDown()}><ChevronDown className="w-3.5 h-3.5" /></button>
           <div className="h-px bg-border my-0.5" />
-          <button className={btnClass} onClick={() => controlsRef.current?.reset()} title="Restablecer vista">
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+          <button className={btnClass} onClick={() => { controlsRef.current?.reset(); handleRestore() }}><RotateCcw className="w-3.5 h-3.5" /></button>
         </div>
 
         <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/50 pointer-events-none whitespace-nowrap">

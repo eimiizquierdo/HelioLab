@@ -234,11 +234,17 @@ export function Dashboard({
           />
         )}
 
-        <SolarScene selectedDate={activePrototype?.data.cursor instanceof Date
-          ? activePrototype.data.cursor
-          : activePrototype?.data.cursor
-            ? new Date(activePrototype.data.cursor)
-            : undefined} />
+        <SolarScene
+          selectedDate={activePrototype?.data.cursor instanceof Date
+            ? activePrototype.data.cursor
+            : activePrototype?.data.cursor
+              ? new Date(activePrototype.data.cursor)
+              : undefined}
+          defaultConfig={activePrototype?.solarConfig ?? { lat: 20.39, lon: -99.99, timezone: -6, beta: 21 }}
+          prototypeId={activePrototype?.id ?? ""}
+          currentUserId={currentUser.id}
+          ownerId={activePrototype?.ownerId ?? ""}
+        />
             
         <ChatsFeed chats={feed} />
       </div>

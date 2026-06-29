@@ -31,6 +31,10 @@ export interface Prototype {
   code: string;
   readings: Reading[];
   owner: UtilityReference;
+  lat: number;
+  lon: number;
+  timezone: number;
+  beta: number;
 }
 
 // ─────────────────────────────────────────────
