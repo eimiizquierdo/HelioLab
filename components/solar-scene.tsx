@@ -3,7 +3,6 @@
 import { useEffect, useRef } from "react"
 import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react"
 
-// Parametros HelioLab (Berrios)
 const LAT_DEG  = 20.39
 const LON_DEG  = -99.99
 const TZ       = -6
@@ -22,35 +21,26 @@ function dayOfYear(date: Date): number {
 }
 
 function solarAngles(n: number, h: number) {
-  // Declinacion (diap. 7)
-  const decl = 23.45 * D2R * Math.sin((360 / 365) * (284 + n) * D2R)
-  // Ecuacion del tiempo (diap. 8)
-  const B = ((360 / 365) * (n - 81)) * D2R
-  const Et = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B)
-  // Hora solar (diap. 8)
-  const TC   = 4 * (15 * TZ - LON_DEG) + Et
-  const tSol = h + TC / 60
-  // Angulo horario (diap. 9)
+  const decl  = 23.45 * D2R * Math.sin((360 / 365) * (284 + n) * D2R)
+  const B     = ((360 / 365) * (n - 81)) * D2R
+  const Et    = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B)
+  const TC    = 4 * (15 * TZ - LON_DEG) + Et
+  const tSol  = h + TC / 60
   const omega = 15 * (tSol - 12) * D2R
-  // Vector solar ENU (diap. 10)
-  const sE =  -Math.cos(decl) * Math.sin(omega)
-  const sN =   Math.cos(LAT)  * Math.sin(decl) - Math.sin(LAT) * Math.cos(decl) * Math.cos(omega)
-  const sU =   Math.sin(LAT)  * Math.sin(decl) + Math.cos(LAT) * Math.cos(decl) * Math.cos(omega)
-  // Elevacion y azimut (diap. 10)
-  const elev = Math.asin(Math.max(-1, Math.min(1, sU)))
-  let az = Math.atan2(sE, sN)
+  const sE    = -Math.cos(decl) * Math.sin(omega)
+  const sN    =  Math.cos(LAT) * Math.sin(decl) - Math.sin(LAT) * Math.cos(decl) * Math.cos(omega)
+  const sU    =  Math.sin(LAT) * Math.sin(decl) + Math.cos(LAT) * Math.cos(decl) * Math.cos(omega)
+  const elev  = Math.asin(Math.max(-1, Math.min(1, sU)))
+  let   az    = Math.atan2(sE, sN)
   if (az < 0) az += 2 * Math.PI
-  // Normal del panel (diap. 12)
-  const npE = Math.sin(BETA) * Math.sin(AP)
-  const npN = Math.sin(BETA) * Math.cos(AP)
-  const npU = Math.cos(BETA)
-  // Angulo de incidencia (diap. 13)
+  const npE   = Math.sin(BETA) * Math.sin(AP)
+  const npN   = Math.sin(BETA) * Math.cos(AP)
+  const npU   = Math.cos(BETA)
   const cosTheta = sE * npE + sN * npN + sU * npU
   const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)))
   return { elev, az, theta, aboveHorizon: sU > 0 }
 }
 
-// Coordenadas Three.js (diap. 29): x=Este, y=Arriba, z=Norte
 function solarToXYZ(elev: number, az: number) {
   return {
     x: R * Math.cos(elev) * Math.sin(az),
@@ -65,6 +55,18 @@ function getHoraLabel(h: number): string {
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
 }
 
+// Color de fondo segun elevacion solar actual
+function skyColor(elevDeg: number): string {
+  if (elevDeg < -12)  return "#020510"  // noche cerrada
+  if (elevDeg < -6)   return "#060d1f"  // noche astronomica
+  if (elevDeg < 0)    return "#0d1a3a"  // noche civil
+  if (elevDeg < 4)    return "#1a2a5a"  // amanecer/atardecer azul
+  if (elevDeg < 10)   return "#b05a1a"  // amanecer/atardecer naranja
+  if (elevDeg < 18)   return "#d4814a"  // alba/crep. naranjo claro
+  if (elevDeg < 30)   return "#6090c8"  // dia temprano, azul palido
+  return "#4a7abf"                       // dia pleno, azul
+}
+
 type SolarControls = {
   zoomIn: () => void
   zoomOut: () => void
@@ -73,9 +75,14 @@ type SolarControls = {
   rotateUp: () => void
   rotateDown: () => void
   reset: () => void
+  setDate: (date: Date) => void
 }
 
-export function SolarScene() {
+interface SolarSceneProps {
+  selectedDate?: Date
+}
+
+export function SolarScene({ selectedDate }: SolarSceneProps) {
   const mountRef    = useRef<HTMLDivElement>(null)
   const controlsRef = useRef<SolarControls | null>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -90,22 +97,18 @@ export function SolarScene() {
       const W = container.clientWidth
       const H = container.clientHeight
 
-      // Renderer
       const renderer = new THREE.WebGLRenderer({ antialias: true })
       renderer.setPixelRatio(window.devicePixelRatio)
       renderer.setSize(W, H)
       renderer.shadowMap.enabled = true
       container.appendChild(renderer.domElement)
 
-      // Escena
       const scene = new THREE.Scene()
-      scene.background = new THREE.Color(0x060a14)
-      scene.fog = new THREE.FogExp2(0x060a14, 0.016)
+      const bgColor = new THREE.Color(0x020510)
+      scene.background = bgColor
 
-      // Camara
       const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 200)
 
-      // Luces
       scene.add(new THREE.AmbientLight(0x203060, 1.4))
       const dirLight = new THREE.DirectionalLight(0xfff5e0, 1.6)
       dirLight.position.set(8, 12, 6)
@@ -119,7 +122,7 @@ export function SolarScene() {
       baseMesh.rotation.x = -Math.PI / 2
       scene.add(baseMesh)
 
-      // Cupula superior
+      // Cupulas
       scene.add(new THREE.Mesh(
         new THREE.SphereGeometry(R, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0x0a1830, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
@@ -128,7 +131,6 @@ export function SolarScene() {
         new THREE.SphereGeometry(R, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0x1a3060, wireframe: true, transparent: true, opacity: 0.18 })
       ))
-      // Cupula inferior (nocturna)
       scene.add(new THREE.Mesh(
         new THREE.SphereGeometry(R, 48, 24, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
         new THREE.MeshBasicMaterial({ color: 0x0a1428, transparent: true, opacity: 0.28, side: THREE.DoubleSide })
@@ -155,10 +157,10 @@ export function SolarScene() {
         sprite.scale.set(1.4, 0.7, 1)
         return sprite
       }
-      scene.add(makeLabel("N", { x: 0,        y: 0.3, z: -(R + 0.8) }))
-      scene.add(makeLabel("S", { x: 0,        y: 0.3, z:  (R + 0.8) }))
-      scene.add(makeLabel("E", { x:  R + 0.8, y: 0.3, z: 0 }))
-      scene.add(makeLabel("O", { x: -(R + 0.8), y: 0.3, z: 0 }))
+      scene.add(makeLabel("N", { x: 0,         y: 0.3, z: -(R + 0.8) }))
+      scene.add(makeLabel("S", { x: 0,         y: 0.3, z:  (R + 0.8) }))
+      scene.add(makeLabel("E", { x:  R + 0.8,  y: 0.3, z: 0 }))
+      scene.add(makeLabel("O", { x: -(R + 0.8),y: 0.3, z: 0 }))
 
       const cardMat = new THREE.LineBasicMaterial({ color: 0x1a3060, transparent: true, opacity: 0.5 });
       [[0,0,-R,0,0,R],[-R,0,0,R,0,0]].forEach((p) => {
@@ -172,7 +174,7 @@ export function SolarScene() {
       })
 
       // Modelo CPV
-      const protoGroup = new THREE.Group()
+      const protoGroup   = new THREE.Group()
       const darkMat  = new THREE.MeshStandardMaterial({ color: 0x111318, roughness: 0.7, metalness: 0.3 })
       const metalMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.4, metalness: 0.7 })
       const glassMat = new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.22, roughness: 0.05, side: THREE.DoubleSide })
@@ -250,7 +252,7 @@ export function SolarScene() {
       protoGroup.position.set(0, 1.4, 0)
       scene.add(protoGroup)
 
-      // Normal del panel (diap. 12)
+      // Normal del panel
       const NP = new THREE.Vector3(
         Math.sin(BETA) * Math.sin(AP),
         Math.cos(BETA),
@@ -258,13 +260,13 @@ export function SolarScene() {
       ).normalize()
       scene.add(new THREE.ArrowHelper(NP, new THREE.Vector3(0, 1.9, 0), 2.0, 0x00ff88, 0.25, 0.12))
 
-      // Sol / indicador nocturno
+      // Sol (mas grande: radio 0.35)
       const sunMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.22, 16, 16),
-        new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: new THREE.Color(0xffaa00), emissiveIntensity: 1.5 })
+        new THREE.SphereGeometry(0.35, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0xffe066, emissive: new THREE.Color(0xffaa00), emissiveIntensity: 1.8 })
       )
       const moonMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.14, 12, 12),
+        new THREE.SphereGeometry(0.18, 12, 12),
         new THREE.MeshStandardMaterial({ color: 0xc0c8ff, emissive: new THREE.Color(0x8899ff), emissiveIntensity: 1.8 })
       )
       scene.add(sunMesh)
@@ -276,6 +278,7 @@ export function SolarScene() {
       let pickSpheres: THREE.Mesh[] = []
       let trajectoryPts:  THREE.Vector3[] = []
       let trajectoryData: (ReturnType<typeof solarAngles> & { h: number })[] = []
+      let activeDate = new Date()
 
       function clearTrajectory() {
         if (dayTube)   { scene.remove(dayTube);   dayTube.geometry.dispose();   dayTube = null }
@@ -285,11 +288,13 @@ export function SolarScene() {
       }
 
       function buildTrajectory(date: Date) {
+        activeDate = date
         clearTrajectory()
         const n = dayOfYear(date)
         const pts: THREE.Vector3[] = []
         const data: (ReturnType<typeof solarAngles> & { h: number })[] = []
 
+        // 288 pasos = un punto cada 5 minutos exactos
         for (let step = 0; step <= 288; step++) {
           const h = (step / 288) * 24
           const angles = solarAngles(n, h)
@@ -319,9 +324,10 @@ export function SolarScene() {
           scene.add(nightLine)
         }
 
-        for (let i = 0; i < pts.length; i += 1) {
+        // Un punto cada 5 minutos (cada step)
+        for (let i = 0; i < pts.length; i++) {
           const mesh = new THREE.Mesh(
-            new THREE.SphereGeometry(0.18, 8, 8),
+            new THREE.SphereGeometry(0.10, 6, 6),
             new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
           )
           mesh.position.copy(pts[i])
@@ -331,12 +337,20 @@ export function SolarScene() {
         }
       }
 
-      // Posicion del sol actual
+      // Posicion sol actual
       let incidentLine: THREE.Line | null = null
 
       function updateSunPosition() {
         const now  = new Date()
         const hNow = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600
+
+        // Fondo dinamico segun hora actual real (no la fecha del calendario)
+        const todayN  = dayOfYear(now)
+        const todayAng = solarAngles(todayN, hNow)
+        const elevDeg  = todayAng.elev * 180 / Math.PI
+        scene.background = new THREE.Color(skyColor(elevDeg))
+
+        // Posicion en la trayectoria del dia seleccionado
         let bestIdx = 0, bestDiff = Infinity
         for (let i = 0; i < trajectoryData.length; i++) {
           const diff = Math.abs(trajectoryData[i].h - hNow)
@@ -394,14 +408,12 @@ export function SolarScene() {
         }
         handleHover(e)
       })
-      // Prevenir scroll de pagina al hacer zoom en el canvas
       renderer.domElement.addEventListener("wheel", (e) => {
         e.preventDefault()
         radius2 = Math.max(6, Math.min(40, radius2 + e.deltaY * 0.03))
         updateCamera()
       }, { passive: false })
 
-      // Exponer controles para botones React
       controlsRef.current = {
         zoomIn:      () => { radius2 = Math.max(6,  radius2 - 1.5); updateCamera() },
         zoomOut:     () => { radius2 = Math.min(40, radius2 + 1.5); updateCamera() },
@@ -410,6 +422,7 @@ export function SolarScene() {
         rotateUp:    () => { phi2 = Math.max(0.05, phi2 - 0.12); updateCamera() },
         rotateDown:  () => { phi2 = Math.min(Math.PI / 2.1, phi2 + 0.12); updateCamera() },
         reset:       () => { theta2 = DEFAULT_THETA; phi2 = DEFAULT_PHI; radius2 = DEFAULT_RADIUS; updateCamera() },
+        setDate:     (date: Date) => { buildTrajectory(date); updateSunPosition() },
       }
 
       // Raycasting / Tooltip
@@ -419,35 +432,31 @@ export function SolarScene() {
       function handleHover(e: MouseEvent) {
         const tooltipEl = container.parentElement?.querySelector<HTMLDivElement>("[data-solar-tooltip]")
         if (!tooltipEl) return
-
         const rect = renderer.domElement.getBoundingClientRect()
-        mouse.x =  ((e.clientX - rect.left)  / rect.width)  * 2 - 1
-        mouse.y = -((e.clientY - rect.top)   / rect.height) * 2 + 1
+        mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1
+        mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1
         raycaster.setFromCamera(mouse, camera)
         const hits = raycaster.intersectObjects(pickSpheres)
-
         if (hits.length > 0) {
           const d = hits[0].object.userData as ReturnType<typeof solarAngles> & { h: number }
-          tooltipEl.querySelector<HTMLElement>("[data-tt-title]")!.textContent =
-            d.aboveHorizon ? "Sol" : "Nocturno"
+          tooltipEl.querySelector<HTMLElement>("[data-tt-title]")!.textContent = d.aboveHorizon ? "Sol" : "Nocturno"
           tooltipEl.querySelector<HTMLElement>("[data-tt-hora]")!.textContent  = getHoraLabel(d.h)
           tooltipEl.querySelector<HTMLElement>("[data-tt-elev]")!.textContent  = (d.elev  * 180 / Math.PI).toFixed(2) + "\u00b0"
           tooltipEl.querySelector<HTMLElement>("[data-tt-az]")!.textContent    = (d.az    * 180 / Math.PI).toFixed(2) + "\u00b0"
           tooltipEl.querySelector<HTMLElement>("[data-tt-theta]")!.textContent =
             d.aboveHorizon ? (d.theta * 180 / Math.PI).toFixed(2) + "\u00b0" : "\u2014"
-          tooltipEl.style.display = "block"
-          const ttW = tooltipEl.offsetWidth  || 180
-          const ttH = tooltipEl.offsetHeight || 110
+          const ttW  = tooltipEl.offsetWidth  || 180
+          const ttH  = tooltipEl.offsetHeight || 110
           const relX = e.clientX - rect.left
           const relY = e.clientY - rect.top
-          tooltipEl.style.left = (relX + ttW + 20 > rect.width  ? relX - ttW - 8 : relX + 16) + "px"
-          tooltipEl.style.top  = (relY - ttH - 8 < 0            ? relY + 16      : relY - ttH - 8) + "px"
+          tooltipEl.style.left    = (relX + ttW + 20 > rect.width  ? relX - ttW - 8 : relX + 16) + "px"
+          tooltipEl.style.top     = (relY - ttH - 8 < 0            ? relY + 16       : relY - ttH - 8) + "px"
+          tooltipEl.style.display = "block"
         } else {
           tooltipEl.style.display = "none"
         }
       }
 
-      // Render loop
       let animId: number
       function animate() {
         animId = requestAnimationFrame(animate)
@@ -455,6 +464,7 @@ export function SolarScene() {
       }
       animate()
 
+      // Actualizar sol cada 30s; cambio de dia automatico
       let lastDay = new Date().getDate()
       intervalRef.current = setInterval(() => {
         const now = new Date()
@@ -480,9 +490,7 @@ export function SolarScene() {
         window.removeEventListener("resize", onResize)
         window.removeEventListener("mouseup", () => { isDragging = false })
         renderer.dispose()
-        if (container.contains(renderer.domElement)) {
-          container.removeChild(renderer.domElement)
-        }
+        if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement)
       }
     })
 
@@ -492,12 +500,18 @@ export function SolarScene() {
     }
   }, [])
 
+  // Cuando cambia selectedDate desde el dashboard, actualizar la trayectoria
+  useEffect(() => {
+    if (selectedDate && controlsRef.current) {
+      controlsRef.current.setDate(selectedDate)
+    }
+  }, [selectedDate])
+
   const btnClass =
     "flex items-center justify-center w-8 h-8 rounded-md border border-border bg-card/80 text-muted-foreground hover:bg-muted hover:text-card-foreground transition-colors backdrop-blur-sm"
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-card-foreground">Posicion Solar 3D</span>
@@ -505,25 +519,20 @@ export function SolarScene() {
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 h-0.5 bg-orange-500 rounded" />
-            Diurna
+            <span className="inline-block w-5 h-0.5 bg-orange-500 rounded" />Diurna
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-5 h-0.5 bg-blue-400 rounded opacity-80" />
-            Nocturna
+            <span className="inline-block w-5 h-0.5 bg-blue-400 rounded opacity-80" />Nocturna
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-300" />
-            Sol actual
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-300" />Sol actual
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-green-400" />
-            Normal panel
+            <span className="inline-block w-2 h-2 rounded-full bg-green-400" />Normal panel
           </span>
         </div>
       </div>
 
-      {/* Canvas container */}
       <div className="relative" style={{ height: 420 }}>
         <div ref={mountRef} className="w-full h-full" />
 
@@ -557,23 +566,16 @@ export function SolarScene() {
 
         {/* Botones de control */}
         <div className="absolute bottom-8 right-3 flex flex-col gap-1 z-10">
-          {/* Zoom */}
           <button className={btnClass} onClick={() => controlsRef.current?.zoomIn()} title="Acercar">
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
           <button className={btnClass} onClick={() => controlsRef.current?.zoomOut()} title="Alejar">
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
-
-          {/* Separador */}
           <div className="h-px bg-border my-0.5" />
-
-          {/* Rotacion vertical */}
           <button className={btnClass} onClick={() => controlsRef.current?.rotateUp()} title="Rotar arriba">
             <ChevronUp className="w-3.5 h-3.5" />
           </button>
-
-          {/* Rotacion horizontal */}
           <div className="flex gap-1">
             <button className={btnClass} onClick={() => controlsRef.current?.rotateLeft()} title="Rotar izquierda">
               <ChevronLeft className="w-3.5 h-3.5" />
@@ -582,19 +584,15 @@ export function SolarScene() {
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
-
           <button className={btnClass} onClick={() => controlsRef.current?.rotateDown()} title="Rotar abajo">
             <ChevronDown className="w-3.5 h-3.5" />
           </button>
-
-          {/* Reset */}
           <div className="h-px bg-border my-0.5" />
           <button className={btnClass} onClick={() => controlsRef.current?.reset()} title="Restablecer vista">
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Hint */}
         <p className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs text-muted-foreground/50 pointer-events-none whitespace-nowrap">
           Arrastra para rotar | Scroll para zoom | Pasa el cursor sobre la trayectoria para ver datos
         </p>

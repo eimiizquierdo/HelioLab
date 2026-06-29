@@ -234,7 +234,12 @@ export function Dashboard({
           />
         )}
 
-        <SolarScene />
+        <SolarScene selectedDate={activePrototype?.data.cursor instanceof Date
+          ? activePrototype.data.cursor
+          : activePrototype?.data.cursor
+            ? new Date(activePrototype.data.cursor)
+            : undefined} />
+            
         <ChatsFeed chats={feed} />
       </div>
 
