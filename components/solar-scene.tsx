@@ -16,94 +16,88 @@ function fmod(a: number, b: number): number {
   return a - Math.floor(a / b) * b
 }
 
-// GRENA algoritmo 3 — Grena, R. (2012) Solar Energy 82(3), 462–470
+// GRENA algoritmo 3 — Grena, R. (2012) Solar Energy 82(3), 462-470
 // Precision tipica ~0.01 grado, valido 2010-2110
-// Entradas: date completo, lat/lon en grados, tz en horas, beta en grados
-// Salidas: elev/az en radianes, theta en radianes, aboveHorizon
+// Mantiene la misma firma que la funcion anterior para no cambiar nada mas
 function solarAngles(
-  _n: number,  // no se usa (se calcula internamente de date, pero se mantiene firma)
-  h: number,   // hora local decimal
+  n: number,    // dia del año (se usa para obtener año/mes/dia junto con date)
+  h: number,    // hora local decimal
   lat: number,
   lon: number,
   tz: number,
   beta: number,
-  date?: Date  // fecha completa para GRENA (si no se pasa usa fecha actual)
+  date?: Date
 ) {
-  // Fecha de referencia
+  // Usamos date si viene, si no usamos fecha actual
   const ref   = date ?? new Date()
   const year  = ref.getFullYear()
   let   month = ref.getMonth() + 1
   const day   = ref.getDate()
-  const hInt  = Math.floor(h)
-  const mInt  = Math.round((h - hInt) * 60)
 
-  // 1. HMS en UTC
-  const HMS = h - tz + mInt / 60 - hInt / 1    // h ya viene como decimal
-  // Recalcular HMS correctamente desde h decimal
-  const HMSutc = h - tz   // hora decimal en UTC
+  // Suprimir warning de n no usado
+  void n
 
-  // 2. t — dias desde J2000
+  // 1. Hora en UTC (h es hora local decimal)
+  const hUTC = h - tz
+
+  // 2. t — dias desde epoca J2000 (aprox)
   let mo = month, yr = year
   if (mo < 3) { mo += 12; yr -= 1 }
   const t = Math.floor(365.25 * (yr - 2000))
           + Math.floor(30.6001 * (mo + 1))
           - Math.floor(0.01 * yr)
-          + day + HMSutc / 24.0 - 21958.0
+          + day + hUTC / 24.0 - 21958.0
 
   // 3. te — tiempo terrestre
   const te = t + DTAU / 86400.0
 
-  // 4. Longitud ecliptica (algoritmo 3)
-  const wa     = 0.0172019715
-  const lamda  = -1.388803
-                + 1.720279216e-2 * te
-                + 3.3366e-2 * Math.sin(wa * te - 0.06172)
-                + 3.53e-4   * Math.sin(2 * wa * te - 0.1163)
+  // 4. Longitud ecliptica (GRENA alg. 3)
+  const wa    = 0.0172019715
+  const lamda = -1.388803
+              + 1.720279216e-2 * te
+              + 3.3366e-2 * Math.sin(wa * te - 0.06172)
+              + 3.53e-4   * Math.sin(2.0 * wa * te - 0.1163)
   const epsilon = 0.4089567 - 6.19e-9 * te
 
   // 5. Ascension recta y declinacion
   let alpha = Math.atan2(Math.sin(lamda) * Math.cos(epsilon), Math.cos(lamda))
-  alpha = fmod(alpha, 2 * Math.PI)
-  if (alpha < 0) alpha += 2 * Math.PI
+  alpha = fmod(alpha, 2.0 * Math.PI)
+  if (alpha < 0) alpha += 2.0 * Math.PI
   const delta = Math.asin(Math.sin(lamda) * Math.sin(epsilon))
 
   // 6. Angulo horario
   let H = 1.7528311 + 6.300388099 * t + lon * D2R - alpha
-  H = fmod(H + Math.PI, 2 * Math.PI) - Math.PI
-  if (H < -Math.PI) H += 2 * Math.PI
+  H = fmod(H + Math.PI, 2.0 * Math.PI) - Math.PI
+  if (H < -Math.PI) H += 2.0 * Math.PI
 
   // 7. Elevacion geometrica
   const latR = lat * D2R
-  const e0   = Math.asin(
-    Math.max(-1, Math.min(1,
-      Math.sin(latR) * Math.sin(delta) + Math.cos(latR) * Math.cos(delta) * Math.cos(H)
-    ))
-  )
+  const sinE = Math.sin(latR) * Math.sin(delta) + Math.cos(latR) * Math.cos(delta) * Math.cos(H)
+  const e0   = Math.asin(Math.max(-1, Math.min(1, sinE)))
 
-  // 8. Correccion por refraccion atmosferica
+  // 8. Refraccion atmosferica
   const ep = e0 - 4.26e-5 * Math.cos(e0)
   const er = ep > 0
-    ? 0.08422 * PRESSURE / (273 + TEMP) / Math.tan(ep + 0.003138 / (ep + 0.08919))
-    : 0
-  const zenith  = Math.PI / 2 - ep - er
-  const elev    = Math.PI / 2 - zenith
+    ? 0.08422 * PRESSURE / (273.0 + TEMP) / Math.tan(ep + 0.003138 / (ep + 0.08919))
+    : 0.0
+  const zenith = Math.PI / 2.0 - ep - er
+  const elev   = Math.PI / 2.0 - zenith
 
-  // 9. Azimut (sistema: 0=Norte, positivo al Este, igual que antes)
+  // 9. Azimut: 0=Norte, positivo al Este (mismo convenio que antes)
   let az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(latR) - Math.tan(delta) * Math.cos(latR))
-  if (az < 0) az += 2 * Math.PI
+  if (az < 0) az += 2.0 * Math.PI
 
-  // 10. Angulo de incidencia sobre el panel
-  // Sistema SEC: x=Sur, y=Este, z=Cenit
-  // Vector solar en SEC desde zenith/azimut
-  const sx =  Math.sin(zenith) * Math.cos(az - Math.PI)   // componente Sur
-  const sy = -Math.sin(zenith) * Math.sin(az - Math.PI)   // componente Este
-  const sz =  Math.cos(zenith)                             // componente Cenit
-  // Normal del panel orientado al sur (Ap=180), beta=inclinacion
+  // 10. Angulo de incidencia sobre el panel (beta = inclinacion, Ap=180 = sur)
+  // Vector solar ENU: sE, sN, sU
+  const sE =  Math.cos(elev) * Math.sin(az)       // Este
+  const sN = -Math.cos(elev) * Math.cos(az)       // Norte (az=0 es Norte, cos(0)=1 → Norte positivo)
+  const sU =  Math.sin(elev)                      // Cenit
+  // Normal del panel en ENU (Ap=180 sur, beta inclinacion)
   const bR  = beta * D2R
-  const npx = -Math.sin(bR)   // componente Sur (orientado sur)
-  const npy =  0              // componente Este
-  const npz =  Math.cos(bR)  // componente Cenit
-  const cosTheta = sx * npx + sy * npy + sz * npz
+  const npE =  0.0
+  const npN = -Math.sin(bR)
+  const npU =  Math.cos(bR)
+  const cosTheta = sE * npE + sN * npN + sU * npU
   const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)))
 
   return { elev, az, theta, aboveHorizon: elev > 0 }
