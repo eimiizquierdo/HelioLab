@@ -3,39 +3,110 @@
 import { useEffect, useRef, useState } from "react"
 import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Settings, X, Save, RefreshCcw } from "lucide-react"
 
-const AP_DEG = 180
-const D2R    = Math.PI / 180
-const R      = 8
+const AP_DEG  = 180
+const D2R     = Math.PI / 180
+const R       = 8
+// GRENA constantes de refraccion atmosferica
+const PRESSURE = 1.013   // atm
+const TEMP     = 25.0    // Celsius
+const DTAU     = 69.0    // Delta T [segundos] TT-UT1 (2026)
 
-function dayOfYear(date: Date): number {
-  const start = new Date(date.getFullYear(), 0, 1)
-  return Math.floor((date.getTime() - start.getTime()) / 86400000) + 1
+// Modulo de fmod para JS
+function fmod(a: number, b: number): number {
+  return a - Math.floor(a / b) * b
 }
 
-function solarAngles(n: number, h: number, lat: number, lon: number, tz: number, beta: number) {
-  const LAT   = lat  * D2R
-  const BETA  = beta * D2R
-  const AP    = AP_DEG * D2R
-  const decl  = 23.45 * D2R * Math.sin((360 / 365) * (284 + n) * D2R)
-  const B     = ((360 / 365) * (n - 81)) * D2R
-  const Et    = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B)
-  const lstm  = 15 * tz
-  // TC = 4*(lon - lstm) + Et  (Berrios validacion p.4: longitud oeste negativa)
-  const TC    = 4 * (lon - lstm) + Et
-  const tSol  = h + TC / 60
-  const omega = 15 * (tSol - 12) * D2R
-  const sE    = -Math.cos(decl) * Math.sin(omega)
-  const sN    =  Math.cos(LAT)  * Math.sin(decl) - Math.sin(LAT) * Math.cos(decl) * Math.cos(omega)
-  const sU    =  Math.sin(LAT)  * Math.sin(decl) + Math.cos(LAT) * Math.cos(decl) * Math.cos(omega)
-  const elev  = Math.asin(Math.max(-1, Math.min(1, sU)))
-  let   az    = Math.atan2(sE, sN)
+// GRENA algoritmo 3 — Grena, R. (2012) Solar Energy 82(3), 462–470
+// Precision tipica ~0.01 grado, valido 2010-2110
+// Entradas: date completo, lat/lon en grados, tz en horas, beta en grados
+// Salidas: elev/az en radianes, theta en radianes, aboveHorizon
+function solarAngles(
+  _n: number,  // no se usa (se calcula internamente de date, pero se mantiene firma)
+  h: number,   // hora local decimal
+  lat: number,
+  lon: number,
+  tz: number,
+  beta: number,
+  date?: Date  // fecha completa para GRENA (si no se pasa usa fecha actual)
+) {
+  // Fecha de referencia
+  const ref   = date ?? new Date()
+  const year  = ref.getFullYear()
+  let   month = ref.getMonth() + 1
+  const day   = ref.getDate()
+  const hInt  = Math.floor(h)
+  const mInt  = Math.round((h - hInt) * 60)
+
+  // 1. HMS en UTC
+  const HMS = h - tz + mInt / 60 - hInt / 1    // h ya viene como decimal
+  // Recalcular HMS correctamente desde h decimal
+  const HMSutc = h - tz   // hora decimal en UTC
+
+  // 2. t — dias desde J2000
+  let mo = month, yr = year
+  if (mo < 3) { mo += 12; yr -= 1 }
+  const t = Math.floor(365.25 * (yr - 2000))
+          + Math.floor(30.6001 * (mo + 1))
+          - Math.floor(0.01 * yr)
+          + day + HMSutc / 24.0 - 21958.0
+
+  // 3. te — tiempo terrestre
+  const te = t + DTAU / 86400.0
+
+  // 4. Longitud ecliptica (algoritmo 3)
+  const wa     = 0.0172019715
+  const lamda  = -1.388803
+                + 1.720279216e-2 * te
+                + 3.3366e-2 * Math.sin(wa * te - 0.06172)
+                + 3.53e-4   * Math.sin(2 * wa * te - 0.1163)
+  const epsilon = 0.4089567 - 6.19e-9 * te
+
+  // 5. Ascension recta y declinacion
+  let alpha = Math.atan2(Math.sin(lamda) * Math.cos(epsilon), Math.cos(lamda))
+  alpha = fmod(alpha, 2 * Math.PI)
+  if (alpha < 0) alpha += 2 * Math.PI
+  const delta = Math.asin(Math.sin(lamda) * Math.sin(epsilon))
+
+  // 6. Angulo horario
+  let H = 1.7528311 + 6.300388099 * t + lon * D2R - alpha
+  H = fmod(H + Math.PI, 2 * Math.PI) - Math.PI
+  if (H < -Math.PI) H += 2 * Math.PI
+
+  // 7. Elevacion geometrica
+  const latR = lat * D2R
+  const e0   = Math.asin(
+    Math.max(-1, Math.min(1,
+      Math.sin(latR) * Math.sin(delta) + Math.cos(latR) * Math.cos(delta) * Math.cos(H)
+    ))
+  )
+
+  // 8. Correccion por refraccion atmosferica
+  const ep = e0 - 4.26e-5 * Math.cos(e0)
+  const er = ep > 0
+    ? 0.08422 * PRESSURE / (273 + TEMP) / Math.tan(ep + 0.003138 / (ep + 0.08919))
+    : 0
+  const zenith  = Math.PI / 2 - ep - er
+  const elev    = Math.PI / 2 - zenith
+
+  // 9. Azimut (sistema: 0=Norte, positivo al Este, igual que antes)
+  let az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(latR) - Math.tan(delta) * Math.cos(latR))
   if (az < 0) az += 2 * Math.PI
-  const npE   = Math.sin(BETA) * Math.sin(AP)
-  const npN   = Math.sin(BETA) * Math.cos(AP)
-  const npU   = Math.cos(BETA)
-  const cosTheta = sE * npE + sN * npN + sU * npU
+
+  // 10. Angulo de incidencia sobre el panel
+  // Sistema SEC: x=Sur, y=Este, z=Cenit
+  // Vector solar en SEC desde zenith/azimut
+  const sx =  Math.sin(zenith) * Math.cos(az - Math.PI)   // componente Sur
+  const sy = -Math.sin(zenith) * Math.sin(az - Math.PI)   // componente Este
+  const sz =  Math.cos(zenith)                             // componente Cenit
+  // Normal del panel orientado al sur (Ap=180), beta=inclinacion
+  const bR  = beta * D2R
+  const npx = -Math.sin(bR)   // componente Sur (orientado sur)
+  const npy =  0              // componente Este
+  const npz =  Math.cos(bR)  // componente Cenit
+  const cosTheta = sx * npx + sy * npy + sz * npz
   const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)))
-  return { elev, az, theta, aboveHorizon: sU > 0 }
+
+  return { elev, az, theta, aboveHorizon: elev > 0 }
 }
 
 function solarToXYZ(elev: number, az: number) {
