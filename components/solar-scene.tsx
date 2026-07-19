@@ -83,9 +83,12 @@ function solarAngles(n: number, h: number, lat: number, lon: number, tz: number,
   const zenith = Math.PI / 2.0 - ep - er
   const elev   = Math.PI / 2.0 - zenith
 
-  // Azimut: 0=Norte, positivo al Este (mismo convenio que antes)
+  // Azimut: 0=Norte, sentido horario (convenio meteorologico = SunCalc)
+  // atan2 da el angulo desde el Sur, sumar PI lo convierte a desde el Norte
   let az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(latR) - Math.tan(delta) * Math.cos(latR))
+  az += Math.PI  // correccion: de Sur-referencia a Norte-referencia
   if (az < 0) az += 2.0 * Math.PI
+  if (az >= 2.0 * Math.PI) az -= 2.0 * Math.PI
 
   // Angulo de incidencia sobre el panel (ENU, Ap=180=sur, beta=inclinacion)
   const sE_ =  Math.cos(elev) * Math.sin(az)
