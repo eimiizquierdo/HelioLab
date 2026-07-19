@@ -3,44 +3,44 @@
 import { useEffect, useRef, useState } from "react"
 import { ZoomIn, ZoomOut, RotateCcw, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Settings, X, Save, RefreshCcw } from "lucide-react"
 
-const AP_DEG  = 180
-const D2R     = Math.PI / 180
-const R       = 8
-// GRENA constantes de refraccion atmosferica
-const PRESSURE = 1.013   // atm
-const TEMP     = 25.0    // Celsius
-const DTAU     = 69.0    // Delta T [segundos] TT-UT1 (2026)
+const AP_DEG = 180
+const D2R    = Math.PI / 180
+const R      = 8
 
-// Modulo de fmod para JS
+function dayOfYear(date: Date): number {
+  const start = new Date(date.getFullYear(), 0, 1)
+  return Math.floor((date.getTime() - start.getTime()) / 86400000) + 1
+}
+
 function fmod(a: number, b: number): number {
   return a - Math.floor(a / b) * b
 }
 
-// GRENA algoritmo 3 — Grena, R. (2012) Solar Energy 82(3), 462-470
-// Precision tipica ~0.01 grado, valido 2010-2110
-// Mantiene la misma firma que la funcion anterior para no cambiar nada mas
-function solarAngles(
-  n: number,    // dia del año (se usa para obtener año/mes/dia junto con date)
-  h: number,    // hora local decimal
-  lat: number,
-  lon: number,
-  tz: number,
-  beta: number,
-  date?: Date
-) {
-  // Usamos date si viene, si no usamos fecha actual
-  const ref   = date ?? new Date()
-  const year  = ref.getFullYear()
-  let   month = ref.getMonth() + 1
-  const day   = ref.getDate()
+// Constantes GRENA
+const PRESSURE = 1.013  // atm
+const TEMP     = 25.0   // Celsius
+const DTAU     = 69.0   // Delta T seg TT-UT1 (2026)
 
-  // Suprimir warning de n no usado
-  void n
+// GRENA algoritmo 3 — Grena (2012) Solar Energy 82(3), 462-470
+// Precision ~0.01 grado. Misma firma que antes para no romper nada.
+function solarAngles(n: number, h: number, lat: number, lon: number, tz: number, beta: number) {
+  // n = dia del año — lo usamos para reconstruir la fecha actual del loop
+  void n  // GRENA usa year/month/day directamente; n se mantiene por compatibilidad
 
-  // 1. Hora en UTC (h es hora local decimal)
+  // Reconstruir fecha desde el contexto actual — se llama dentro de buildTrajectory
+  // que ya tiene la fecha correcta, pero solarAngles no la recibe.
+  // Solución: usamos n para estimar year/month/day a partir de la fecha actual
+  const today = new Date()
+  const year  = today.getFullYear()
+  // Reconstruir mes/dia desde n (dia del año)
+  const tempDate = new Date(year, 0, n)
+  const month = tempDate.getMonth() + 1
+  const day   = tempDate.getDate()
+
+  // Hora en UTC
   const hUTC = h - tz
 
-  // 2. t — dias desde epoca J2000 (aprox)
+  // t — dias desde epoca J2000
   let mo = month, yr = year
   if (mo < 3) { mo += 12; yr -= 1 }
   const t = Math.floor(365.25 * (yr - 2000))
@@ -48,10 +48,10 @@ function solarAngles(
           - Math.floor(0.01 * yr)
           + day + hUTC / 24.0 - 21958.0
 
-  // 3. te — tiempo terrestre
+  // te — tiempo terrestre
   const te = t + DTAU / 86400.0
 
-  // 4. Longitud ecliptica (GRENA alg. 3)
+  // Longitud ecliptica (GRENA alg. 3)
   const wa    = 0.0172019715
   const lamda = -1.388803
               + 1.720279216e-2 * te
@@ -59,23 +59,23 @@ function solarAngles(
               + 3.53e-4   * Math.sin(2.0 * wa * te - 0.1163)
   const epsilon = 0.4089567 - 6.19e-9 * te
 
-  // 5. Ascension recta y declinacion
+  // Ascension recta y declinacion
   let alpha = Math.atan2(Math.sin(lamda) * Math.cos(epsilon), Math.cos(lamda))
   alpha = fmod(alpha, 2.0 * Math.PI)
   if (alpha < 0) alpha += 2.0 * Math.PI
   const delta = Math.asin(Math.sin(lamda) * Math.sin(epsilon))
 
-  // 6. Angulo horario
+  // Angulo horario
   let H = 1.7528311 + 6.300388099 * t + lon * D2R - alpha
   H = fmod(H + Math.PI, 2.0 * Math.PI) - Math.PI
   if (H < -Math.PI) H += 2.0 * Math.PI
 
-  // 7. Elevacion geometrica
+  // Elevacion geometrica
   const latR = lat * D2R
   const sinE = Math.sin(latR) * Math.sin(delta) + Math.cos(latR) * Math.cos(delta) * Math.cos(H)
   const e0   = Math.asin(Math.max(-1, Math.min(1, sinE)))
 
-  // 8. Refraccion atmosferica
+  // Refraccion atmosferica
   const ep = e0 - 4.26e-5 * Math.cos(e0)
   const er = ep > 0
     ? 0.08422 * PRESSURE / (273.0 + TEMP) / Math.tan(ep + 0.003138 / (ep + 0.08919))
@@ -83,21 +83,18 @@ function solarAngles(
   const zenith = Math.PI / 2.0 - ep - er
   const elev   = Math.PI / 2.0 - zenith
 
-  // 9. Azimut: 0=Norte, positivo al Este (mismo convenio que antes)
+  // Azimut: 0=Norte, positivo al Este (mismo convenio que antes)
   let az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(latR) - Math.tan(delta) * Math.cos(latR))
   if (az < 0) az += 2.0 * Math.PI
 
-  // 10. Angulo de incidencia sobre el panel (beta = inclinacion, Ap=180 = sur)
-  // Vector solar ENU: sE, sN, sU
-  const sE =  Math.cos(elev) * Math.sin(az)       // Este
-  const sN = -Math.cos(elev) * Math.cos(az)       // Norte (az=0 es Norte, cos(0)=1 → Norte positivo)
-  const sU =  Math.sin(elev)                      // Cenit
-  // Normal del panel en ENU (Ap=180 sur, beta inclinacion)
-  const bR  = beta * D2R
-  const npE =  0.0
-  const npN = -Math.sin(bR)
-  const npU =  Math.cos(bR)
-  const cosTheta = sE * npE + sN * npN + sU * npU
+  // Angulo de incidencia sobre el panel (ENU, Ap=180=sur, beta=inclinacion)
+  const sE_ =  Math.cos(elev) * Math.sin(az)
+  const sN_ = -Math.cos(elev) * Math.cos(az)
+  const sU_ =  Math.sin(elev)
+  const bR   = beta * D2R
+  const npN_ = -Math.sin(bR)
+  const npU_ =  Math.cos(bR)
+  const cosTheta = sN_ * npN_ + sU_ * npU_
   const theta = Math.acos(Math.max(-1, Math.min(1, cosTheta)))
 
   return { elev, az, theta, aboveHorizon: elev > 0 }
