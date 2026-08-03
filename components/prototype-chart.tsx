@@ -302,8 +302,16 @@ export const PrototypeChart = forwardRef<
     // Verificar que los datos del prototipo cubran ese rango
     const readings = proto.data.readings ?? []
     if (readings.length > 0) {
-      const firstReading = new Date(readings[0].date).getTime()
-      const lastReading  = new Date(readings[readings.length - 1].date).getTime()
+      // date puede ser Date, string o Timestamp de Firestore
+      const toMs = (d: unknown): number => {
+        if (d instanceof Date) return d.getTime()
+        if (typeof d === "string" || typeof d === "number") return new Date(d).getTime()
+        if (d && typeof (d as {toDate?: () => Date}).toDate === "function")
+          return (d as {toDate: () => Date}).toDate().getTime()
+        return NaN
+      }
+      const firstReading = toMs(readings[0].date)
+      const lastReading  = toMs(readings[readings.length - 1].date)
 
       // Si el rango del comentario está fuera de los datos disponibles,
       // buscar el punto más cercano en los datos

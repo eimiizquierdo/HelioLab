@@ -25,7 +25,10 @@ export function ChatsFeed({ chats, onSeekTo }: ChatsFeedProps) {
     const groups = new Map<string, ChatAsPost[]>()
 
     for (const chat of chats) {
-      const dayKey = new Date(chat.creation_date).toISOString().split("T")[0]
+      // Usar fecha local (UTC-6) para no desplazar el día por zona horaria
+      const d = new Date(chat.creation_date)
+      const localD = new Date(d.getTime() - 6 * 60 * 60 * 1000)
+      const dayKey = localD.toISOString().split("T")[0]
       if (!groups.has(dayKey)) groups.set(dayKey, [])
       groups.get(dayKey)!.push(chat)
     }

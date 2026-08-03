@@ -36,6 +36,19 @@ function formatWithOffset(date: Date, offsetMinutes: number): string {
   return `${h12}:${m} ${period}`
 }
 
+// Devuelve "dd MMM · HH:MM am/pm" con offset aplicado
+function formatDateTimeWithOffset(date: Date, offsetMinutes: number): string {
+  const local = new Date(date.getTime() + offsetMinutes * 60 * 1000)
+  const h = local.getUTCHours()
+  const m = local.getUTCMinutes().toString().padStart(2, "0")
+  const period = h >= 12 ? "p.m." : "a.m."
+  const h12 = (h % 12 || 12).toString().padStart(2, "0")
+  const months = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"]
+  const day = local.getUTCDate()
+  const month = months[local.getUTCMonth()]
+  return `${day} ${month} · ${h12}:${m} ${period}`
+}
+
 // Secondary reference timezone shown alongside the author's when they differ
 const SECONDARY_TZ = "UTC-06:00"
 
@@ -135,7 +148,7 @@ export function ChatAsPostCard({ chat, onSeekTo }: ChatAsPostCardProps) {
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
             <span>
-              {formatWithOffset(new Date(chat.highlight_start), offsetMinutes)}
+              {formatDateTimeWithOffset(new Date(chat.highlight_start), offsetMinutes)}
               {" — "}
               {formatWithOffset(new Date(chat.highlight_end), offsetMinutes)}
             </span>
