@@ -268,7 +268,7 @@ export function Dashboard({
             if (!hasData) {
               try {
                 // Cargar todos los datos desde el inicio del tiempo hasta ahora
-                const rangeReadings = await getReadingsForRange({
+                const { readings: rangeReadings, highlights: rangeHighlights } = await getReadingsForRange({
                   prototypeId: activePrototype.id,
                   startDate: new Date(0),
                   endDate: new Date(),
@@ -279,6 +279,7 @@ export function Dashboard({
                     data: {
                       ...p.data,
                       readings: rangeReadings,
+                      highlights: rangeHighlights.length > 0 ? rangeHighlights : p.data.highlights,
                     },
                   }))
                 }
