@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirestore } from "firebase-admin/firestore";
+import * as admin from "firebase-admin";
+import { db } from "@/lib/firebase-admin";
 import type { ChatAsMessage } from "@/lib/types/frontend-data-model";
 
 const MESSAGE_BATCH_SIZE = process.env.MESSAGE_BATCH_SIZE
@@ -30,8 +31,6 @@ export async function POST(
     );
   }
 
-  const db = getFirestore();
-
   const chatRef = db.collection("Chat").doc(chatId);
   const chatSnap = await chatRef.get();
 
@@ -43,7 +42,7 @@ export async function POST(
     .collection("Comment")
     .where("chat", "==", chatRef)
     .orderBy("creation_date", "desc")
-    .limit(MESSAGE_BATCH_SIZE);
+    .limit(MESSAGE_BATCH_SIZE) as admin.firestore.Query;
 
   if (limitDate) {
     const limitTimestamp = new Date(limitDate);
@@ -62,7 +61,11 @@ export async function POST(
     commentsSnap.docs.map(async (doc) => {
       const data = doc.data();
 
-      const authorRef = data.author;
+      // author puede ser DocumentReference (nuevo) o string ID (comentarios viejos)
+      const authorRef = typeof data.author === "string"
+        ? db.collection("User").doc(data.author)
+        : data.author as admin.firestore.DocumentReference;
+
       const authorSnap = await authorRef.get();
       const authorData = authorSnap.exists ? authorSnap.data() : null;
 
