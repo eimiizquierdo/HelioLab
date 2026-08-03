@@ -294,6 +294,7 @@ export function Dashboard({
             data: {
               ...p.data,
               cursor: date,
+              time_window: 6,  // resetear a ventana por defecto al navegar con calendario
               cursor_updates_automatically: false,
             }
           }))

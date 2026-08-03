@@ -292,6 +292,7 @@ export const PrototypeChart = forwardRef<
 
   // Mueve el cursor para mostrar el rango startDate-endDate en el gráfico
   // Mueve el gráfico para mostrar el rango startDate-endDate
+  // Usa mínimo 6h de ventana para no romper el gráfico
   const seekTo = useCallback((startDate: Date, endDate: Date) => {
     const startMs = startDate.getTime()
     const endMs   = endDate.getTime()
@@ -301,12 +302,13 @@ export const PrototypeChart = forwardRef<
     const paddingMs = rangeMs * 0.3
     const spanHours = (rangeMs + paddingMs * 2) / (1000 * 60 * 60)
 
-    // cursor es el límite SUPERIOR del rango visible
-    const newCursor = new Date(endMs + paddingMs)
+    // Ventana mínima 6h para que el gráfico funcione correctamente
+    const windows = [6, 8, 12, 24, 48, 72, 168]
+    const newWindow = windows.find((w) => w >= spanHours) ?? 6
 
-    // time_window más pequeña que cubra el span
-    const windows = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168]
-    const newWindow = windows.find((w) => w >= spanHours) ?? 168
+    // cursor es el límite SUPERIOR: centro del rango + mitad de la ventana
+    const centerMs = (startMs + endMs) / 2
+    const newCursor = new Date(centerMs + (newWindow / 2) * 60 * 60 * 1000)
 
     setPrototype((p) => ({
       ...p,
