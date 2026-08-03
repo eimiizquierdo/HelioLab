@@ -255,25 +255,30 @@ export function Dashboard({
           chats={feed}
           onSeekTo={async (startDate, endDate) => {
             if (!activePrototype) return
-            // Verificar si ya hay readings en ese rango
+            const centerMs = (startDate.getTime() + endDate.getTime()) / 2
+            const halfWindowMs = activePrototype.data.time_window / 2 * 60 * 60 * 1000
+            // Rango amplio: toda la ventana actual centrada en el comentario
+            const windowStart = new Date(centerMs - halfWindowMs)
+            const windowEnd   = new Date(centerMs + halfWindowMs)
+            // Verificar si ya hay readings en ese rango amplio
             const hasData = activePrototype.data.readings.some((r) => {
               const d = r.date instanceof Date ? r.date : new Date(r.date as string)
-              return d >= startDate && d <= endDate
+              return d >= windowStart && d <= windowEnd
             })
-            // Si no hay datos en ese rango, cargarlos primero
             if (!hasData) {
               try {
+                // Cargar todos los datos desde el inicio del tiempo hasta ahora
                 const rangeReadings = await getReadingsForRange({
                   prototypeId: activePrototype.id,
-                  startDate,
-                  endDate,
+                  startDate: new Date(0),
+                  endDate: new Date(),
                 })
                 if (rangeReadings.length > 0) {
                   prototypeAccessors[activeIndex].setPrototype((p) => ({
                     ...p,
                     data: {
                       ...p.data,
-                      readings: [...rangeReadings, ...p.data.readings],
+                      readings: rangeReadings,
                     },
                   }))
                 }
