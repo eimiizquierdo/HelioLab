@@ -7,7 +7,8 @@ export async function POST(
   { params }: { params: { prototype: string } },
 ): Promise<NextResponse> {
   try {
-    const { prototype: prototypeId } = params;
+    const { prototype } = await params;
+    const prototypeId = prototype;
     const body = await req.json().catch(() => ({}));
     const { start_date, end_date } = body;
 
@@ -57,7 +58,7 @@ export async function POST(
 
     return NextResponse.json(prototypeData, { status: 200 });
   } catch (error) {
-    console.error("[get_latest_data]", error);
+    console.error("[get_latest_data] error:", error);
     return NextResponse.json(
       { error: "Internal server error." },
       { status: 500 },
