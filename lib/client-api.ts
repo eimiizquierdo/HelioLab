@@ -165,9 +165,17 @@ export async function unfollowChat(
   userId: string,
   chatId: string,
 ): Promise<void> {
-  // followedChats = followedChats.filter(
-  //   (fc) => !(fc.owner === userId && fc.chat === chatId),
-  // );
+  const response = await fetch(
+    apiEndpoint(`/api/researcher/${userId}/unfollow_chat`),
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat: chatId }),
+    },
+  );
+
+  if (!response.ok)
+    throw new Error(`Failed to unfollow chat: ${response.status}`);
 }
 
 export async function markAllNotificationsRead(): Promise<void> {

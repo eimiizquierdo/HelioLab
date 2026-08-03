@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { getFollowedChats, getNotifications } from "@/lib/client-api"
-import type { FollowedChat, Notification } from "@/lib/types/backend-types"
+import type { FollowedChat, Notification } from "@/lib/types/backend-data-model"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -25,7 +25,7 @@ export function AppSidebar() {
       getFollowedChats({ userId: user.id }).then(setFollowedChats)
       getNotifications({ userId: user.id }).then(setNotifications)
     }
-  }, [user])
+  }, [user, pathname])
 
   if (!user) return null
 
