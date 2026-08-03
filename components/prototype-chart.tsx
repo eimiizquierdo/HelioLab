@@ -291,34 +291,22 @@ export const PrototypeChart = forwardRef<
   }, [redrawCanvas]);
 
   // Mueve el cursor para mostrar el rango startDate-endDate en el gráfico
-  // Mueve el gráfico para mostrar el rango startDate-endDate
-  // Usa mínimo 6h de ventana para no romper el gráfico
+  // Navega al rango del comentario manteniendo el time_window actual
   const seekTo = useCallback((startDate: Date, endDate: Date) => {
-    const startMs = startDate.getTime()
-    const endMs   = endDate.getTime()
-    const rangeMs = Math.max(endMs - startMs, 60 * 1000)
-
-    // Padding 30% a cada lado
-    const paddingMs = rangeMs * 0.3
-    const spanHours = (rangeMs + paddingMs * 2) / (1000 * 60 * 60)
-
-    // Ventana mínima 6h para que el gráfico funcione correctamente
-    const windows = [6, 8, 12, 24, 48, 72, 168]
-    const newWindow = windows.find((w) => w >= spanHours) ?? 6
-
-    // cursor es el límite SUPERIOR: centro del rango + mitad de la ventana
-    const centerMs = (startMs + endMs) / 2
-    const newCursor = new Date(centerMs + (newWindow / 2) * 60 * 60 * 1000)
-
-    setPrototype((p) => ({
-      ...p,
-      data: {
-        ...p.data,
-        cursor: newCursor,
-        time_window: newWindow,
-        cursor_updates_automatically: false,
-      },
-    }))
+    const centerMs = (startDate.getTime() + endDate.getTime()) / 2
+    setPrototype((p) => {
+      // cursor = centro del rango + mitad de la ventana actual
+      const halfWindowMs = p.data.time_window / 2 * 60 * 60 * 1000
+      const newCursor = new Date(centerMs + halfWindowMs)
+      return {
+        ...p,
+        data: {
+          ...p.data,
+          cursor: newCursor,
+          cursor_updates_automatically: false,
+        },
+      }
+    })
   }, [setPrototype])
 
   useImperativeHandle(ref, () => ({ clearSelection, seekTo }), [clearSelection, seekTo]);

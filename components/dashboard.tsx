@@ -253,34 +253,7 @@ export function Dashboard({
                     
         <ChatsFeed
           chats={feed}
-          onSeekTo={async (startDate, endDate) => {
-            if (!activePrototype) return
-            // Cargar los readings del rango si no están en memoria
-            const protoReadings = activePrototype.data.readings
-            const hasData = protoReadings.some((r) => {
-              const d = r.date instanceof Date ? r.date : new Date(r.date as string)
-              return d >= startDate && d <= endDate
-            })
-            if (!hasData) {
-              try {
-                const rangeReadings = await getReadingsForRange({
-                  prototypeId: activePrototype.id,
-                  startDate,
-                  endDate,
-                })
-                if (rangeReadings.length > 0) {
-                  prototypeAccessors[activeIndex].setPrototype((p) => ({
-                    ...p,
-                    data: {
-                      ...p.data,
-                      readings: [...rangeReadings, ...p.data.readings],
-                    },
-                  }))
-                }
-              } catch (e) {
-                console.error("seekTo: error cargando readings", e)
-              }
-            }
+          onSeekTo={(startDate, endDate) => {
             chartRef.current?.seekTo(startDate, endDate)
           }}
         />
