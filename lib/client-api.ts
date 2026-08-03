@@ -60,6 +60,33 @@ export async function getCurrentUser(parameters: {}): Promise<FrontendUser | nul
   }
 }
 
+// Trae readings de un prototipo para un rango específico de fechas
+export async function getReadingsForRange(parameters: {
+  prototypeId: string;
+  startDate: Date;
+  endDate: Date;
+}): Promise<{ id: string; date: Date; voltage: number; current: number; irradiance: number }[]> {
+  const { prototypeId, startDate, endDate } = parameters;
+  const response = await fetch(
+    apiEndpoint(`/api/prototype/${prototypeId}/get_latest_data`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
+      }),
+    },
+  );
+  if (!response.ok) throw new Error(`getReadingsForRange failed: ${response.status}`);
+  const data = await response.json();
+  return (data.readings ?? []).map((r: any) => ({
+    ...r,
+    id: r.id ?? r.date ?? String(Math.random()),
+    date: new Date(r.date),
+  }));
+}
+
 export async function getAllPrototypesLatestData(
   startDate: Date,
 ): Promise<PrototypeData[]> {

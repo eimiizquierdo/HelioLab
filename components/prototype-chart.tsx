@@ -293,17 +293,9 @@ export const PrototypeChart = forwardRef<
   // Mueve el cursor para mostrar el rango startDate-endDate en el gráfico
   // Mueve el gráfico para mostrar el rango startDate-endDate
   const seekTo = useCallback((startDate: Date, endDate: Date) => {
-    const proto = getPrototype()
-    const readings = proto?.data.readings ?? []
-    console.log("[seekTo] startDate:", startDate, "endDate:", endDate)
-    console.log("[seekTo] readings count:", readings.length)
-    if (readings.length > 0) {
-      console.log("[seekTo] first reading date:", readings[0].date, typeof readings[0].date)
-      console.log("[seekTo] last reading date:", readings[readings.length-1].date, typeof readings[readings.length-1].date)
-    }
     const startMs = startDate.getTime()
     const endMs   = endDate.getTime()
-    const rangeMs = Math.max(endMs - startMs, 60 * 1000) // mínimo 1 min
+    const rangeMs = Math.max(endMs - startMs, 60 * 1000)
 
     // Padding 30% a cada lado
     const paddingMs = rangeMs * 0.3
@@ -325,7 +317,7 @@ export const PrototypeChart = forwardRef<
         cursor_updates_automatically: false,
       },
     }))
-  }, [getPrototype, setPrototype])
+  }, [setPrototype])
 
   useImperativeHandle(ref, () => ({ clearSelection, seekTo }), [clearSelection, seekTo]);
 
