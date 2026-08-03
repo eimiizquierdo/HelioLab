@@ -31,9 +31,14 @@ export async function getPrototypeData(
     .where("highlight_end", "<", Timestamp.fromDate(endDate))
     .orderBy("highlight_end", "asc");
 
-  const [readingsSnap, highlightsSnap] = await Promise.all([
+  const emptySnap = { docs: [] as FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[] }
+  type SnapOrEmpty = FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData> | typeof emptySnap
+  const [readingsSnap, highlightsSnap]: [
+    FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>,
+    SnapOrEmpty
+  ] = await Promise.all([
     readingsQuery.get(),
-    highlightsQuery.get(),
+    highlightsQuery.get().catch(() => emptySnap),
   ]);
 
   const readings = readingsSnap.docs.map((doc) => {
