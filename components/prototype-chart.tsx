@@ -233,12 +233,18 @@ export const PrototypeChart = forwardRef<
       const center = (start + end) / 2;
       if (center < domainMin || center > domainMax) return [];
       const percent = ((center - domainMin) / range) * 100;
-      const nameParts = (h.creator?.name ?? "").split(" ")
-      const initials = nameParts.map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"
+      // Iniciales: usar creator.name si está disponible, si no mostrar icono genérico
+      const creatorName = h.creator?.name ?? ""
+      const initials = creatorName
+        .split(" ")
+        .map((n: string) => n[0] ?? "")
+        .join("")
+        .slice(0, 2)
+        .toUpperCase() || "Us"
       return [{
         chatId: h.chat,
         percent: Math.max(2, Math.min(98, percent)),
-        profilePicture: h.creator_profile_picture,
+        profilePicture: h.creator_profile_picture ?? "",
         initials,
       }];
     });
@@ -803,4 +809,3 @@ export const PrototypeChart = forwardRef<
     </div>
   );
 });
-  

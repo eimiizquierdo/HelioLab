@@ -20,7 +20,16 @@ export async function POST(
     .orderBy("creation_date", "asc")
     .get();
 
-  const notifications = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const notifications = snapshot.docs.map((d) => {
+    const data = d.data()
+    return {
+      id: d.id,
+      ...data,
+      // Convertir Timestamps de Firestore a strings ISO
+      creation_date: data.creation_date?.toDate?.()?.toISOString?.() ?? data.creation_date,
+      read_date: data.read_date?.toDate?.()?.toISOString?.() ?? data.read_date ?? null,
+    }
+  });
 
   return NextResponse.json({ notifications }, { status: 200 });
 }
