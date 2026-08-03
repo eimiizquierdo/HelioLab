@@ -292,14 +292,40 @@ export const PrototypeChart = forwardRef<
 
   // Mueve el cursor para mostrar el rango startDate-endDate en el gráfico
   const seekTo = useCallback((startDate: Date, endDate: Date) => {
-    const rangeMs = endDate.getTime() - startDate.getTime()
-    const paddingMs = rangeMs * 0.5
-    const newCursor = new Date(endDate.getTime() + paddingMs)
-    const spanMs = rangeMs + paddingMs * 2
-    const spanHours = spanMs / (1000 * 60 * 60)
-    // Elegir la time_window mas cercana por arriba
+    const proto = getPrototype()
+    if (!proto) return
+
+    const startMs = startDate.getTime()
+    const endMs   = endDate.getTime()
+    const rangeMs = endMs - startMs
+
+    // Verificar que los datos del prototipo cubran ese rango
+    const readings = proto.data.readings ?? []
+    if (readings.length > 0) {
+      const firstReading = new Date(readings[0].date).getTime()
+      const lastReading  = new Date(readings[readings.length - 1].date).getTime()
+
+      // Si el rango del comentario está fuera de los datos disponibles,
+      // buscar el punto más cercano en los datos
+      if (endMs < firstReading || startMs > lastReading) {
+        // No hay datos en ese rango — no mover
+        console.warn("seekTo: rango fuera de los datos disponibles", { startDate, endDate })
+        return
+      }
+    }
+
+    // Padding del 30% a cada lado para contexto
+    const paddingMs  = rangeMs * 0.3
+    const spanMs     = rangeMs + paddingMs * 2
+    const spanHours  = spanMs / (1000 * 60 * 60)
+
+    // cursor = límite superior del rango visible (endDate + padding)
+    const newCursor = new Date(endMs + paddingMs)
+
+    // Elegir la time_window más cercana por arriba (en horas)
     const windows = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168]
     const newWindow = windows.find((w) => w >= spanHours) ?? 168
+
     setPrototype((p) => ({
       ...p,
       data: {
@@ -309,7 +335,7 @@ export const PrototypeChart = forwardRef<
         cursor_updates_automatically: false,
       },
     }))
-  }, [setPrototype])
+  }, [getPrototype, setPrototype])
 
   useImperativeHandle(ref, () => ({ clearSelection, seekTo }), [clearSelection, seekTo]);
 
