@@ -103,6 +103,12 @@ export async function POST(
         readings,
         prototype_name: prototypeSnap?.data()?.name ?? null,
         first_comment_text: firstCommentSnap.data()?.text ?? null,
+        highlight_start: firstCommentSnap.data()?.highlight_start
+          ? (firstCommentSnap.data()!.highlight_start as admin.firestore.Timestamp).toDate().toISOString()
+          : null,
+        highlight_end: firstCommentSnap.data()?.highlight_end
+          ? (firstCommentSnap.data()!.highlight_end as admin.firestore.Timestamp).toDate().toISOString()
+          : null,
       };
     })
   );

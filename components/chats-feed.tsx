@@ -31,7 +31,14 @@ export function ChatsFeed({ chats }: ChatsFeedProps) {
 
     return Array.from(groups.entries()).map(([dayKey, dayChats]) => {
       const date = new Date(dayKey + "T12:00:00")
-      const dayName = DAY_NAMES[date.getDay()] ?? dayKey
+      // Formato completo: "Lunes, 18 de julio de 2026"
+      const fullDate = date.toLocaleDateString("es-MX", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+      const dayName = fullDate.charAt(0).toUpperCase() + fullDate.slice(1)
       return { dayKey, dayName, chats: dayChats }
     })
   }, [chats])

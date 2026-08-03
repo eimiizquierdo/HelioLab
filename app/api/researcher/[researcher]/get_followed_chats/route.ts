@@ -51,7 +51,10 @@ export async function POST(
         owner: (d.owner as admin.firestore.DocumentReference).id,
         chat: (d.chat as admin.firestore.DocumentReference).id,
         name: d.name,
-        last_message_seen_time: (d.last_message_seen_time as admin.firestore.Timestamp).toDate().toISOString(),
+        // last_message_seen_time puede ser null (chats recién creados)
+        last_message_seen_time: d.last_message_seen_time
+          ? (d.last_message_seen_time as admin.firestore.Timestamp).toDate().toISOString()
+          : null,
         silenced: d.silenced,
       });
     });

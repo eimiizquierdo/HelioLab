@@ -7,7 +7,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { researcher: string } }
 ) {
-  const { researcher } = params;
+  const { researcher } = await params;
   const { chat, name } = await req.json();
 
   if (!chat) {

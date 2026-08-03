@@ -66,6 +66,7 @@ export function ChatAsPostCard({ chat }: ChatAsPostCardProps) {
     .slice(0, 2)
 
   const countryBadge = TZ_LABELS[creator.timezone] || ""
+  const offsetMinutes = utcOffsetToMinutes(creator.timezone)
   const { primary, secondary } = formatTimeWithTz(
     new Date(chat.creation_date),
     creator.timezone
@@ -125,9 +126,23 @@ export function ChatAsPostCard({ chat }: ChatAsPostCardProps) {
         </div>
       </div>
 
+      {/* Zona del gráfico referenciada */}
+      {chat.highlight_start && chat.highlight_end && (
+        <div className="mt-3 flex items-center gap-1.5 text-xs text-orange-400 font-medium">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>
+            {formatWithOffset(new Date(chat.highlight_start), offsetMinutes)}
+            {" — "}
+            {formatWithOffset(new Date(chat.highlight_end), offsetMinutes)}
+          </span>
+        </div>
+      )}
+
       {/* First comment text */}
       {chat.first_comment_text && (
-        <p className="mt-3 text-sm leading-relaxed text-card-foreground">
+        <p className="mt-2 text-sm leading-relaxed text-card-foreground">
           {chat.first_comment_text}
         </p>
       )}

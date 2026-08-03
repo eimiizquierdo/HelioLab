@@ -100,5 +100,16 @@ export async function POST(
     silenced: false,
   });
 
-  return NextResponse.json({ chat_id: chatDocRef.id }, { status: 201 });
+  // Return the full Comment so the client can render it immediately
+  return NextResponse.json({
+    id: commentDocRef.id,
+    chat: chatDocRef.id,
+    full_name: commentData.full_name,
+    degree: commentData.degree,
+    creation_date: now.toDate().toISOString(),
+    author: researcher,
+    text: commentData.text,
+    highlight_start: highlightStart ? highlightStart.toDate().toISOString() : null,
+    highlight_end:   highlightEnd   ? highlightEnd.toDate().toISOString()   : null,
+  }, { status: 201 });
 }

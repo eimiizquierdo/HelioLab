@@ -24,6 +24,8 @@ export type ChatAsPost = {
         profile_picture: Url;
     };
     first_comment_text: string;
+    highlight_start: string | null;
+    highlight_end: string | null;
     commenters: UtilityReference[];
     followers: UtilityReference[];
     readings: Reading[];
