@@ -533,9 +533,8 @@ export const PrototypeChart = forwardRef<
   }, [domainMin, domainMax, chartTimeStep])
 
   const xTickPriorityMap = useMemo(() => {
-    if (!xTicks) return;
-
     const map = new Map<number, number>()
+    if (!xTicks) return map
     xTicks.forEach((t) => map.set(t.ms, t.priority))
     return map
   }, [xTicks])
