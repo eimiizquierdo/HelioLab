@@ -31,15 +31,16 @@ export async function getPrototypeData(
     .where("highlight_end", "<", Timestamp.fromDate(endDate))
     .orderBy("highlight_end", "asc");
 
-  const emptySnap = { docs: [] as FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>[] }
-  type SnapOrEmpty = FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData> | typeof emptySnap
-  const [readingsSnap, highlightsSnap]: [
-    FirebaseFirestore.QuerySnapshot<FirebaseFirestore.DocumentData>,
-    SnapOrEmpty
-  ] = await Promise.all([
-    readingsQuery.get(),
-    highlightsQuery.get().catch(() => emptySnap),
-  ]);
+  const readingsSnap = await readingsQuery.get();
+
+  // highlightsQuery requiere índice compuesto — si no existe, devolver vacío
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let highlightsSnap: any = { docs: [] };
+  try {
+    highlightsSnap = await highlightsQuery.get();
+  } catch {
+    // índice no creado aún — highlights vacíos
+  }
 
   const readings = readingsSnap.docs.map((doc) => {
     const d = doc.data();
@@ -52,17 +53,20 @@ export async function getPrototypeData(
     };
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const highlightsSieve: boolean[] = await Promise.all(
-    highlightsSnap.docs.map(async (doc) => {
+    highlightsSnap.docs.map(async (doc: any) => {
       const data = doc.data();
       const chatDoc = await data.chat.get();
       const chatsPrototype: string = chatDoc.data()!.prototype.id;
       return chatsPrototype === prototypeId;
     })
   );
-  const filteredHighlights = highlightsSnap.docs.filter((_, i) => highlightsSieve[i]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filteredHighlights = highlightsSnap.docs.filter((_: any, i: number) => highlightsSieve[i]);
 
-  const highlights: ChatAsHighlight[] = filteredHighlights.map((doc) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const highlights: ChatAsHighlight[] = filteredHighlights.map((doc: any) => {
     const data = doc.data();
     const creatorData = data.creator_data as
       | { name: string; profile_picture: string }
