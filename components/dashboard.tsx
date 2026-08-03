@@ -248,7 +248,10 @@ export function Dashboard({
           ownerId={activePrototype?.ownerId ?? ""}
         />
                     
-        <ChatsFeed chats={feed} />
+        <ChatsFeed
+          chats={feed}
+          onSeekTo={(startDate, endDate) => chartRef.current?.seekTo(startDate, endDate)}
+        />
       </div>
 
       <div className="w-64 shrink-0">

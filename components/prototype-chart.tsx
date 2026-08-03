@@ -35,6 +35,7 @@ export interface SelectionRange {
 
 export interface PrototypeChartHandle {
   clearSelection: () => void;
+  seekTo: (startDate: Date, endDate: Date) => void;
 }
 
 interface PrototypeChartProps {
@@ -232,10 +233,13 @@ export const PrototypeChart = forwardRef<
       const center = (start + end) / 2;
       if (center < domainMin || center > domainMax) return [];
       const percent = ((center - domainMin) / range) * 100;
+      const nameParts = (h.creator?.name ?? "").split(" ")
+      const initials = nameParts.map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"
       return [{
         chatId: h.chat,
         percent: Math.max(2, Math.min(98, percent)),
         profilePicture: h.creator_profile_picture,
+        initials,
       }];
     });
   }, [highlights, domainMin, domainMax]);
@@ -280,7 +284,28 @@ export const PrototypeChart = forwardRef<
     redrawCanvas();
   }, [redrawCanvas]);
 
-  useImperativeHandle(ref, () => ({ clearSelection }), [clearSelection]);
+  // Mueve el cursor para mostrar el rango startDate-endDate en el gráfico
+  const seekTo = useCallback((startDate: Date, endDate: Date) => {
+    const rangeMs = endDate.getTime() - startDate.getTime()
+    const paddingMs = rangeMs * 0.5
+    const newCursor = new Date(endDate.getTime() + paddingMs)
+    const spanMs = rangeMs + paddingMs * 2
+    const spanHours = spanMs / (1000 * 60 * 60)
+    // Elegir la time_window mas cercana por arriba
+    const windows = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168]
+    const newWindow = windows.find((w) => w >= spanHours) ?? 168
+    setPrototype((p) => ({
+      ...p,
+      data: {
+        ...p.data,
+        cursor: newCursor,
+        time_window: newWindow,
+        cursor_updates_automatically: false,
+      },
+    }))
+  }, [setPrototype])
+
+  useImperativeHandle(ref, () => ({ clearSelection, seekTo }), [clearSelection, seekTo]);
 
   // ── Map highlight timestamps → pixel x positions ──────────────────────
 
@@ -769,7 +794,7 @@ export const PrototypeChart = forwardRef<
             >
               <Avatar className="size-8 border-2 border-card">
                 <AvatarImage src={ap.profilePicture} alt="" />
-                <AvatarFallback className="text-[10px]">?</AvatarFallback>
+                <AvatarFallback className="text-[10px]">{ap.initials}</AvatarFallback>
               </Avatar>
             </button>
           ))}
@@ -778,3 +803,4 @@ export const PrototypeChart = forwardRef<
     </div>
   );
 });
+  

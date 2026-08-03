@@ -1,11 +1,12 @@
 "use client"
 
 import { useMemo } from "react"
-import type { ChatAsPost } from "@/lib/types/frontend-types"
+import type { ChatAsPost } from "@/lib/types/frontend-data-model"
 import { ChatAsPostCard } from "@/components/chat-as-post-card"
 
 interface ChatsFeedProps {
   chats: ChatAsPost[]
+  onSeekTo?: (startDate: Date, endDate: Date) => void
 }
 
 const DAY_NAMES: Record<number, string> = {
@@ -18,7 +19,7 @@ const DAY_NAMES: Record<number, string> = {
   6: "Sábado",
 }
 
-export function ChatsFeed({ chats }: ChatsFeedProps) {
+export function ChatsFeed({ chats, onSeekTo }: ChatsFeedProps) {
   const grouped = useMemo(() => {
 
     const groups = new Map<string, ChatAsPost[]>()
@@ -69,6 +70,7 @@ export function ChatsFeed({ chats }: ChatsFeedProps) {
               <ChatAsPostCard
                 key={chat.chat}
                 chat={chat}
+                onSeekTo={onSeekTo}
               />
             ))}
           </div>

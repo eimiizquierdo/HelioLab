@@ -1,12 +1,13 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import type { ChatAsPost } from "@/lib/types/frontend-types"
+import type { ChatAsPost } from "@/lib/types/frontend-data-model"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import { Star, CheckSquare } from "lucide-react"
+import { Star, CheckSquare, ScanSearch } from "lucide-react"
 
 interface ChatAsPostCardProps {
   chat: ChatAsPost
+  onSeekTo?: (startDate: Date, endDate: Date) => void
 }
 
 const TZ_LABELS: Record<string, string> = {
@@ -54,7 +55,7 @@ function formatTimeWithTz(
   return { primary, secondary }
 }
 
-export function ChatAsPostCard({ chat }: ChatAsPostCardProps) {
+export function ChatAsPostCard({ chat, onSeekTo }: ChatAsPostCardProps) {
   const router = useRouter()
   const { creator } = chat
 
@@ -128,15 +129,30 @@ export function ChatAsPostCard({ chat }: ChatAsPostCardProps) {
 
       {/* Zona del gráfico referenciada */}
       {chat.highlight_start && chat.highlight_end && (
-        <div className="mt-3 flex items-center gap-1.5 text-xs text-orange-400 font-medium">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <span>
-            {formatWithOffset(new Date(chat.highlight_start), offsetMinutes)}
-            {" — "}
-            {formatWithOffset(new Date(chat.highlight_end), offsetMinutes)}
-          </span>
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-orange-400 font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span>
+              {formatWithOffset(new Date(chat.highlight_start), offsetMinutes)}
+              {" — "}
+              {formatWithOffset(new Date(chat.highlight_end), offsetMinutes)}
+            </span>
+          </div>
+          {onSeekTo && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onSeekTo(new Date(chat.highlight_start!), new Date(chat.highlight_end!))
+              }}
+              className="flex items-center gap-1 rounded-md border border-orange-400/30 bg-orange-400/10 px-2 py-0.5 text-[11px] text-orange-400 transition-colors hover:bg-orange-400/20"
+              aria-label="Ver zona en el gráfico"
+            >
+              <ScanSearch className="h-3 w-3" />
+              Ver en gráfico
+            </button>
+          )}
         </div>
       )}
 
