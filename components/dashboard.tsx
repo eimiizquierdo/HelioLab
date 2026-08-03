@@ -95,9 +95,12 @@ export function Dashboard({
       activePrototype.data.cursor.getTime() - activePrototype.data.time_window * 60 * 60 * 1000,
     )
     const windowEnd = activePrototype.data.cursor
-    return activePrototype.data.readings.filter(
-      (reading) => reading.date >= windowStart && reading.date <= windowEnd,
-    )
+    return activePrototype.data.readings.filter((reading) => {
+      const d = reading.date instanceof Date
+        ? reading.date
+        : new Date(reading.date as string)
+      return d >= windowStart && d <= windowEnd
+    })
   }, [activePrototype])
 
   const filteredHighlights = useMemo(() => {

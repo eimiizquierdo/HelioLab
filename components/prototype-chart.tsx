@@ -291,46 +291,20 @@ export const PrototypeChart = forwardRef<
   }, [redrawCanvas]);
 
   // Mueve el cursor para mostrar el rango startDate-endDate en el gráfico
+  // Mueve el gráfico para mostrar el rango startDate-endDate
   const seekTo = useCallback((startDate: Date, endDate: Date) => {
-    const proto = getPrototype()
-    if (!proto) return
-
     const startMs = startDate.getTime()
     const endMs   = endDate.getTime()
-    const rangeMs = endMs - startMs
+    const rangeMs = Math.max(endMs - startMs, 60 * 1000) // mínimo 1 min
 
-    // Verificar que los datos del prototipo cubran ese rango
-    const readings = proto.data.readings ?? []
-    if (readings.length > 0) {
-      // date puede ser Date, string o Timestamp de Firestore
-      const toMs = (d: unknown): number => {
-        if (d instanceof Date) return d.getTime()
-        if (typeof d === "string" || typeof d === "number") return new Date(d).getTime()
-        if (d && typeof (d as {toDate?: () => Date}).toDate === "function")
-          return (d as {toDate: () => Date}).toDate().getTime()
-        return NaN
-      }
-      const firstReading = toMs(readings[0].date)
-      const lastReading  = toMs(readings[readings.length - 1].date)
+    // Padding 30% a cada lado
+    const paddingMs = rangeMs * 0.3
+    const spanHours = (rangeMs + paddingMs * 2) / (1000 * 60 * 60)
 
-      // Si el rango del comentario está fuera de los datos disponibles,
-      // buscar el punto más cercano en los datos
-      if (endMs < firstReading || startMs > lastReading) {
-        // No hay datos en ese rango — no mover
-        console.warn("seekTo: rango fuera de los datos disponibles", { startDate, endDate })
-        return
-      }
-    }
-
-    // Padding del 30% a cada lado para contexto
-    const paddingMs  = rangeMs * 0.3
-    const spanMs     = rangeMs + paddingMs * 2
-    const spanHours  = spanMs / (1000 * 60 * 60)
-
-    // cursor = límite superior del rango visible (endDate + padding)
+    // cursor es el límite SUPERIOR del rango visible
     const newCursor = new Date(endMs + paddingMs)
 
-    // Elegir la time_window más cercana por arriba (en horas)
+    // time_window más pequeña que cubra el span
     const windows = [1, 2, 3, 4, 6, 8, 12, 24, 48, 72, 168]
     const newWindow = windows.find((w) => w >= spanHours) ?? 168
 
@@ -343,7 +317,7 @@ export const PrototypeChart = forwardRef<
         cursor_updates_automatically: false,
       },
     }))
-  }, [getPrototype, setPrototype])
+  }, [setPrototype])
 
   useImperativeHandle(ref, () => ({ clearSelection, seekTo }), [clearSelection, seekTo]);
 
