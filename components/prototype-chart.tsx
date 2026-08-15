@@ -218,8 +218,31 @@ export const PrototypeChart = forwardRef<
     return map;
   }, [chartData]);
 
-    const [domainMin, domainMax] = useMemo(() => {
-    if (domain) return domain;
+  const [domainMin, domainMax] = useMemo(() => {
+    if (domain) {
+      // Ajustar dominio a horas operativas 10am-5pm en UTC-6
+      const [rawMin, rawMax] = domain
+      const minDate = new Date(rawMin)
+      const maxDate = new Date(rawMax)
+      // Si el rango abarca más de un día, limitar al horario operativo
+      // Solo aplicar si el rango visible es menor a 24h (zoom suficiente)
+      const rangeHours = (rawMax - rawMin) / (1000 * 60 * 60)
+      if (rangeHours <= 24) {
+        // Encontrar 10am y 5pm del día del cursor en UTC-6
+        const cursorDate = new Date(rawMax)
+        const dayUTC = new Date(Date.UTC(
+          cursorDate.getUTCFullYear(),
+          cursorDate.getUTCMonth(),
+          cursorDate.getUTCDate(),
+          16, 0, 0  // 10am UTC-6 = 16:00 UTC
+        ))
+        const dayEnd = new Date(dayUTC.getTime() + 7 * 60 * 60 * 1000) // 5pm UTC-6 = 23:00 UTC
+        const adjMin = Math.max(rawMin, dayUTC.getTime())
+        const adjMax = Math.min(rawMax, dayEnd.getTime())
+        if (adjMin < adjMax) return [adjMin, adjMax]
+      }
+      return domain
+    }
     const max = chartData.length
       ? chartData[chartData.length - 1].time
       : Date.now();

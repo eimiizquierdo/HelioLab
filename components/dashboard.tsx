@@ -32,6 +32,7 @@ export function Dashboard({
   const [feed, setFeed] = useState<ChatAsPost[]>(initialFeed)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const lastDataFetchRef = useRef<Date>(initialDataFetch)
+  const pollCountRef    = useRef<number>(0)
 
   const POLLING_INTERVAL_MS = 10_000
 
@@ -41,7 +42,11 @@ export function Dashboard({
 
   const pollData = useCallback(async () => {
     try {
-      const data = await getAllPrototypesLatestData(lastDataFetchRef.current)
+      pollCountRef.current += 1
+      // Cada 6 polls (~1 minuto) hacer recarga completa para reflejar ediciones en BD
+      const isFullReload = pollCountRef.current % 6 === 0
+      const fetchFrom = isFullReload ? new Date(0) : lastDataFetchRef.current
+      const data = await getAllPrototypesLatestData(fetchFrom)
       const newLastDataFetch = new Date()
 
       setPrototypes((previous) =>
@@ -53,7 +58,9 @@ export function Dashboard({
             ...prototype,
             data: {
               ...prototype.data,
-              readings: [...prototype.data.readings, ...datum.readings],
+              readings: isFullReload
+                ? datum.readings
+                : [...prototype.data.readings, ...datum.readings],
               highlights: [...datum.highlights, ...prototype.data.highlights.filter(
                 h => !datum.highlights.some((dh: any) => dh.chat === h.chat)
               )],
@@ -101,11 +108,7 @@ export function Dashboard({
       const d = reading.date instanceof Date
         ? reading.date
         : new Date(reading.date as string)
-      if (d < windowStart || d > windowEnd) return false
-      // Mostrar solo lecturas entre 10am y 5pm hora local (UTC-6)
-      const localHour = d.getUTCHours() - 6  // UTC-6
-      const adjustedHour = ((localHour % 24) + 24) % 24
-      return adjustedHour >= 10 && adjustedHour < 17
+      return d >= windowStart && d <= windowEnd
     })
   }, [activePrototype])
 
