@@ -54,7 +54,9 @@ export function Dashboard({
             data: {
               ...prototype.data,
               readings: [...prototype.data.readings, ...datum.readings],
-              highlights: [...prototype.data.highlights, ...datum.highlights],
+              highlights: [...datum.highlights, ...prototype.data.highlights.filter(
+                h => !datum.highlights.some((dh: any) => dh.chat === h.chat)
+              )],
               window_upper_bound: newLastDataFetch,
               ...(prototype.data.cursor_updates_automatically && {
                 cursor: newLastDataFetch,
@@ -99,7 +101,11 @@ export function Dashboard({
       const d = reading.date instanceof Date
         ? reading.date
         : new Date(reading.date as string)
-      return d >= windowStart && d <= windowEnd
+      if (d < windowStart || d > windowEnd) return false
+      // Mostrar solo lecturas entre 10am y 5pm hora local (UTC-6)
+      const localHour = d.getUTCHours() - 6  // UTC-6
+      const adjustedHour = ((localHour % 24) + 24) % 24
+      return adjustedHour >= 10 && adjustedHour < 17
     })
   }, [activePrototype])
 
@@ -184,6 +190,16 @@ export function Dashboard({
               domain={activeDomain}
               windowSpan={activePrototype.data.time_window}
               isLoading={activePrototype.is_loading}
+              isLive={activePrototype.data.cursor_updates_automatically}
+              onGoLive={() => {
+                prototypeAccessors[activeIndex].setPrototype((p) => ({
+                  ...p,
+                  data: {
+                    ...p.data,
+                    cursor_updates_automatically: true,
+                  },
+                }))
+              }}
               onSelectionComplete={handleSelectionComplete}
               getPrototype={prototypeAccessors[activeIndex].getPrototype}
               setPrototype={prototypeAccessors[activeIndex].setPrototype}

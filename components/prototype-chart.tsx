@@ -25,7 +25,7 @@ import type { ChatAsHighlight, FrontendPrototype } from "@/lib/types/frontend-da
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Loader2, Radio } from "lucide-react";
 import { usePrototypeNavigation } from "@/hooks/use-prototype-navigation";
 
 export interface SelectionRange {
@@ -45,6 +45,8 @@ interface PrototypeChartProps {
   domain?: [number, number];
   windowSpan: number;
   isLoading?: boolean;
+  isLive?: boolean;
+  onGoLive?: () => void;
   onSelectionComplete?: (range: SelectionRange) => void;
   getPrototype: () => FrontendPrototype | undefined;
   setPrototype: (callback: (prototype: FrontendPrototype) => FrontendPrototype) => void;
@@ -150,6 +152,8 @@ export const PrototypeChart = forwardRef<
     domain,
     windowSpan,
     isLoading = false,
+    isLive = true,
+    onGoLive,
     onSelectionComplete,
     getPrototype,
     setPrototype,
@@ -649,6 +653,18 @@ export const PrototypeChart = forwardRef<
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
+              {!isLive && onGoLive && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onGoLive}
+                  className="h-8 px-2 gap-1 text-xs text-orange-500 border-orange-400 hover:bg-orange-50"
+                  title="Volver al tiempo real"
+                >
+                  <Radio className="h-3.5 w-3.5" />
+                  En vivo
+                </Button>
+              )}
             </div>
           </div>
         </div>
