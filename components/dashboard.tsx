@@ -32,7 +32,6 @@ export function Dashboard({
   const [feed, setFeed] = useState<ChatAsPost[]>(initialFeed)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const lastDataFetchRef = useRef<Date>(initialDataFetch)
-  const pollCountRef    = useRef<number>(0)
 
   const POLLING_INTERVAL_MS = 10_000
 
@@ -42,11 +41,8 @@ export function Dashboard({
 
   const pollData = useCallback(async () => {
     try {
-      pollCountRef.current += 1
-      // Cada 6 polls (~1 minuto) hacer recarga completa para reflejar ediciones en BD
-      const isFullReload = pollCountRef.current % 6 === 0
-      const fetchFrom = isFullReload ? new Date(0) : lastDataFetchRef.current
-      const data = await getAllPrototypesLatestData(fetchFrom)
+      const isFullReload = false
+      const data = await getAllPrototypesLatestData(lastDataFetchRef.current)
       const newLastDataFetch = new Date()
 
       setPrototypes((previous) =>
@@ -109,9 +105,16 @@ export function Dashboard({
         ? reading.date
         : new Date(reading.date as string)
       if (d < windowStart || d > windowEnd) return false
-      // Solo horas operativas 10am-5pm UTC-6 (16:00-23:00 UTC)
+      // Solo horas operativas 10am-5pm
+      // México usa UTC-6 en invierno y UTC-5 en verano (horario de verano)
+      // Detectar offset real usando el offset del sistema o calcularlo por fecha
       const utcHour = d.getUTCHours()
-      return utcHour >= 16 && utcHour < 23
+      const month = d.getUTCMonth() + 1 // 1-12
+      // Horario de verano en México: primer domingo de abril al último domingo de octubre
+      const isDST = month > 4 && month < 10  // aprox: mayo-septiembre siempre DST
+      const offsetHours = isDST ? 5 : 6      // UTC-5 en verano, UTC-6 en invierno
+      const localHour = (utcHour - offsetHours + 24) % 24
+      return localHour >= 10 && localHour < 17
     })
   }, [activePrototype])
 
@@ -289,11 +292,12 @@ export function Dashboard({
             })
             if (!hasData) {
               try {
-                // Cargar todos los datos desde el inicio del tiempo hasta ahora
+                // Cargar solo el rango del día del comentario (±12h alrededor del highlight)
+                const centerMs = (startDate.getTime() + endDate.getTime()) / 2
                 const { readings: rangeReadings, highlights: rangeHighlights } = await getReadingsForRange({
                   prototypeId: activePrototype.id,
-                  startDate: new Date(0),
-                  endDate: new Date(),
+                  startDate: new Date(centerMs - 12 * 60 * 60 * 1000),
+                  endDate: new Date(centerMs + 12 * 60 * 60 * 1000),
                 })
                 if (rangeReadings.length > 0) {
                   prototypeAccessors[activeIndex].setPrototype((p) => ({
