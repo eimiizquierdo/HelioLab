@@ -99,69 +99,91 @@ export function usePrototypeNavigation(
     }
   }, [getPrototype, setPrototype, chartTimeStep, chartTimeStride])
 
+  // Dado un Date, devuelve la fecha con hora 17:00 (5pm) en UTC-6
+  // usando el offset correcto según horario de verano/invierno
+  function dayAt5pm(date: Date): Date {
+    // Horario de verano en México: abril-octubre → UTC-5, resto → UTC-6
+    const month = date.getMonth() + 1
+    const offsetHours = (month >= 4 && month <= 10) ? 5 : 6
+    // Construir 5pm hora local como UTC
+    const local = new Date(date)
+    // Poner a medianoche UTC del mismo día UTC
+    const dayUTC = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()))
+    // Sumar horas: 17 (local) + offset = UTC
+    return new Date(dayUTC.getTime() + (17 + offsetHours) * 60 * 60 * 1000)
+  }
+
   const handleScrollLeft = useCallback(async () => {
     const prototype = getPrototype()
-    if (!prototype || chartTimeStep === undefined || chartTimeStride === undefined) return
+    if (!prototype) return
 
-    const windowLowerBound = new Date(prototype.data.cursor.getTime() - prototype.data.time_window * 60 * 60 * 1_000);
-    const windowUpperBoundAfterStep = new Date(prototype.data.cursor.getTime() - chartTimeStep * 60 * 60 * 1_000);
-    const windowLowerBoundAfterStep = new Date(windowLowerBound.getTime() - chartTimeStep * 60 * 60 * 1_000);
-    const scrollLowerBound = prototype.data.window_lower_bound;
-    
-    if (windowLowerBoundAfterStep.getTime() > scrollLowerBound.getTime()) {
-      setPrototype((prototype) => {
-        return {
-          ...prototype,
-          data: {
-            ...prototype.data,
-            cursor_updates_automatically: false,
-            cursor: windowUpperBoundAfterStep,
-          }
-        };
-      })
-      return;
+    // Cursor actual → obtener el día anterior a las 5pm
+    const currentCursor = prototype.data.cursor
+    const prevDay5pm = dayAt5pm(new Date(currentCursor.getTime() - 24 * 60 * 60 * 1000))
+
+    // time_window fijo en 7h (10am a 5pm)
+    const newWindow = 7
+    const scrollLowerBound = prototype.data.window_lower_bound
+    const newLowerBound = new Date(prevDay5pm.getTime() - newWindow * 60 * 60 * 1000)
+
+    if (newLowerBound.getTime() >= scrollLowerBound.getTime()) {
+      setPrototype((p) => ({
+        ...p,
+        data: {
+          ...p.data,
+          cursor: prevDay5pm,
+          time_window: newWindow,
+          cursor_updates_automatically: false,
+        }
+      }))
+      return
     }
 
-    setPrototype((prototype) => ({ ...prototype, is_loading: true }));
-
-    const windowLowerBoundAfterStepAndStride = new Date(windowLowerBoundAfterStep.getTime() - chartTimeStride * 60 * 60 * 1_000);
+    // Necesita cargar datos anteriores
+    setPrototype((p) => ({ ...p, is_loading: true }))
+    const fetchFrom = new Date(newLowerBound.getTime() - 24 * 60 * 60 * 1000)
     getPrototypeDataInRange({
       prototypeId: prototype.id,
-      startDate: windowLowerBoundAfterStepAndStride,
-      endDate: scrollLowerBound
-    })
-    .then((data) => {
-      setPrototype((prototype) => ({ 
-        ...prototype, 
+      startDate: fetchFrom,
+      endDate: scrollLowerBound,
+    }).then((data) => {
+      setPrototype((p) => ({
+        ...p,
         is_loading: false,
         data: {
-          ...prototype.data,
-          highlights: [ ...data.highlights, ...prototype.data.highlights ],
-          readings: [ ...data.readings, ...prototype.data.readings],
-          window_lower_bound: windowLowerBoundAfterStepAndStride,
-          cursor: windowUpperBoundAfterStep
+          ...p.data,
+          highlights: [...data.highlights, ...p.data.highlights],
+          readings: [...data.readings, ...p.data.readings],
+          window_lower_bound: fetchFrom,
+          cursor: prevDay5pm,
+          time_window: newWindow,
+          cursor_updates_automatically: false,
         }
-      }));
+      }))
     })
-    ;
-  }, [getPrototype, setPrototype, chartTimeStep, chartTimeStride])
+  }, [getPrototype, setPrototype])
 
   const handleScrollRight = useCallback(() => {
     const prototype = getPrototype()
-    if (!prototype || chartTimeStep === undefined) return
+    if (!prototype) return
 
-    const proposedWindowUpperBound = new Date(
-      prototype.data.cursor.getTime() + chartTimeStep * 60 * 60 * 1000,
-    )
-    const newWindowUpperBound = new Date(
-      Math.min(proposedWindowUpperBound.getTime(), prototype.data.window_upper_bound.getTime()),
-    )
+    const currentCursor = prototype.data.cursor
+    const nextDay5pm = dayAt5pm(new Date(currentCursor.getTime() + 24 * 60 * 60 * 1000))
+    const newWindow = 7
+
+    // No pasar del límite superior
+    if (nextDay5pm.getTime() > prototype.data.window_upper_bound.getTime()) return
 
     setPrototype((p) => ({
       ...p,
-      data: { ...p.data, cursor: newWindowUpperBound },
+      data: {
+        ...p.data,
+        cursor: nextDay5pm,
+        time_window: newWindow,
+        cursor_updates_automatically: false,
+      }
     }))
-  }, [getPrototype, setPrototype, chartTimeStep])
+  }, [getPrototype, setPrototype])
 
   return { handleScrollLeft, handleScrollRight, handleZoomIn, handleZoomOut, chartTimeStep }
 }
