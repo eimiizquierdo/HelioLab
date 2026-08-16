@@ -218,23 +218,14 @@ export const PrototypeChart = forwardRef<
     return map;
   }, [chartData]);
 
-  // Filtrar chartData a horas operativas 10am-5pm (UTC-6 = UTC+18... ajuste: 10+6=16 UTC, 17+6=23 UTC)
-  const chartDataFiltered = useMemo(() => {
-    return chartData.filter((d) => {
-      const utcHour = d.date.getUTCHours()
-      // 10am UTC-6 = 16:00 UTC, 5pm UTC-6 = 23:00 UTC
-      return utcHour >= 16 && utcHour < 23
-    })
-  }, [chartData])
-
   const [domainMin, domainMax] = useMemo(() => {
     if (domain) return domain
-    const max = chartDataFiltered.length
-      ? chartDataFiltered[chartDataFiltered.length - 1].time
+    const max = chartData.length
+      ? chartData[chartData.length - 1].time
       : Date.now();
     const min = max - WINDOW_HOURS * 60 * 60 * 1000;
     return [min, max];
-  }, [chartDataFiltered, domain]);
+  }, [chartData, domain]);
 
   const avatarPositions = useMemo(() => {
     if (!chartData.length) return [];
@@ -698,7 +689,7 @@ export const PrototypeChart = forwardRef<
 
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={chartDataFiltered}
+              data={chartData}
               margin={CHART_MARGIN}
               onMouseMove={handleRechartsMouseMove}
               onMouseLeave={handleRechartsMouseLeave}

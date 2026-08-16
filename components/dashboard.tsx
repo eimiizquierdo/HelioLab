@@ -108,7 +108,10 @@ export function Dashboard({
       const d = reading.date instanceof Date
         ? reading.date
         : new Date(reading.date as string)
-      return d >= windowStart && d <= windowEnd
+      if (d < windowStart || d > windowEnd) return false
+      // Solo horas operativas 10am-5pm UTC-6 (16:00-23:00 UTC)
+      const utcHour = d.getUTCHours()
+      return utcHour >= 16 && utcHour < 23
     })
   }, [activePrototype])
 
