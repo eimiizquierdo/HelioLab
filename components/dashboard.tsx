@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react"
-import { getFeed, addComment, getAllPrototypesLatestData, getReadingsForRange } from "@/lib/client-api"
+import { getFeed, addComment, getReadingsForRange } from "@/lib/client-api"
 import type { FrontendUser, ChatAsPost, FrontendPrototype } from "@/lib/types/frontend-data-model"
 import {
   PrototypeChart,
@@ -33,47 +33,47 @@ export function Dashboard({
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const lastDataFetchRef = useRef<Date>(initialDataFetch)
 
-  const POLLING_INTERVAL_MS = 10_000
 
   const chartRef = useRef<PrototypeChartHandle>(null)
 
   const activePrototype = prototypes[activeIndex]
 
-  const pollData = useCallback(async () => {
-    try {
-      const isFullReload = false
-      const data = await getAllPrototypesLatestData(lastDataFetchRef.current)
-      const newLastDataFetch = new Date()
+  // Agrega un reading individual recibido por SSE
+  const addReading = useCallback((prototypeId: string, reading: {
+    id: string
+    date: string
+    voltage: number
+    current: number
+    irradiance: number
+  }) => {
+    const readingDate = new Date(reading.date)
+    setPrototypes((previous) =>
+      previous.map((prototype) => {
+        if (prototype.id !== prototypeId) return prototype
+        return {
+          ...prototype,
+          data: {
+            ...prototype.data,
+            readings: [...prototype.data.readings, {
+              id: reading.id,
+              date: readingDate,
+              voltage: reading.voltage,
+              current: reading.current,
+              irradiance: reading.irradiance,
+            }],
+            window_upper_bound: readingDate,
+            ...(prototype.data.cursor_updates_automatically && {
+              cursor: readingDate,
+            }),
+          },
+        }
+      })
+    )
+    lastDataFetchRef.current = readingDate
+  }, [])
 
-      setPrototypes((previous) =>
-        previous.map((prototype) => {
-          const datum = data.find((d) => d.prototype === prototype.id)
-          if (!datum) return prototype
-
-          return {
-            ...prototype,
-            data: {
-              ...prototype.data,
-              readings: isFullReload
-                ? datum.readings
-                : [...prototype.data.readings, ...datum.readings],
-              highlights: [...datum.highlights, ...prototype.data.highlights.filter(
-                h => !datum.highlights.some((dh: any) => dh.chat === h.chat)
-              )],
-              window_upper_bound: newLastDataFetch,
-              ...(prototype.data.cursor_updates_automatically && {
-                cursor: newLastDataFetch,
-              }),
-            },
-          }
-        })
-      )
-
-      lastDataFetchRef.current = newLastDataFetch
-    } catch (error) {
-      console.error("Failed to load data:", error)
-    }
-
+  // Refresca el feed de comentarios
+  const refreshFeed = useCallback(async () => {
     try {
       const updatedFeed = await getFeed({ researcherId: currentUser.id })
       setFeed(updatedFeed)
@@ -149,14 +149,29 @@ export function Dashboard({
     [prototypes],
   )
 
-  // Polling for real-time updates
+  // SSE: recibir readings en tiempo real sin polling
   useEffect(() => {
-    const interval = setInterval(() => {
-      pollData()
-    }, POLLING_INTERVAL_MS)
+    const since = lastDataFetchRef.current.toISOString()
+    const source = new EventSource(`/api/stream?since=${encodeURIComponent(since)}`)
 
-    return () => clearInterval(interval)
-  }, [pollData])
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as {
+          prototype: string
+          reading: { id: string; date: string; voltage: number; current: number; irradiance: number }
+        }
+        addReading(payload.prototype, payload.reading)
+      } catch (err) {
+        console.error("[SSE] Error procesando mensaje:", err)
+      }
+    }
+
+    source.onerror = () => {
+      // EventSource reconecta automáticamente
+    }
+
+    return () => source.close()
+  }, [addReading])
 
   function handleSelectionComplete(range: SelectionRange) {
     setSelection(range)
@@ -257,7 +272,7 @@ export function Dashboard({
             prototypeId={activePrototype.id}
             userId={currentUser.id}
             onClearSelection={handleClearSelection}
-            onCommentAdded={pollData}
+            onCommentAdded={refreshFeed}
             addComment={addComment}
           />
         )}
