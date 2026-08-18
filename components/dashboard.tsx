@@ -60,7 +60,11 @@ export function Dashboard({
               voltage: reading.voltage,
               current: reading.current,
               irradiance: reading.irradiance,
-            }],
+            }].sort((a, b) => {
+              const da = a.date instanceof Date ? a.date.getTime() : new Date(a.date as string).getTime()
+              const db2 = b.date instanceof Date ? b.date.getTime() : new Date(b.date as string).getTime()
+              return da - db2
+            }),
             window_upper_bound: readingDate,
             ...(prototype.data.cursor_updates_automatically && {
               cursor: readingDate,
@@ -216,10 +220,19 @@ export function Dashboard({
               isLoading={activePrototype.is_loading}
               isLive={activePrototype.data.cursor_updates_automatically}
               onGoLive={() => {
+                const now = new Date()
+                const windowStart = new Date(now.getTime() - 6 * 60 * 60 * 1000)
                 prototypeAccessors[activeIndex].setPrototype((p) => ({
                   ...p,
                   data: {
                     ...p.data,
+                    // Solo conservar readings de las últimas 6 horas
+                    readings: p.data.readings.filter((r) => {
+                      const d = r.date instanceof Date ? r.date : new Date(r.date as string)
+                      return d >= windowStart && d <= now
+                    }),
+                    cursor: now,
+                    time_window: 6,
                     cursor_updates_automatically: true,
                   },
                 }))
