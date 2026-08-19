@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { updateUserProfile } from "@/lib/client-api"
+import { updateUserProfile, changePassword } from "@/lib/client-api"
 import { useAuth } from "@/lib/auth-context"
-import type { UserLocal } from "@/lib/types/frontend-types"
+import type { FrontendUser } from "@/lib/types/frontend-data-model"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,7 +27,7 @@ const TIMEZONES: { value: string; label: string }[] = [
 ]
 
 interface ProfileFormProps {
-  currentUser: UserLocal
+  currentUser: FrontendUser
 }
 
 export function ProfileForm({ currentUser }: ProfileFormProps) {
@@ -37,6 +37,10 @@ export function ProfileForm({ currentUser }: ProfileFormProps) {
   const [degree, setDegree] = useState(currentUser.degree)
   const [timezone, setTimezone] = useState(currentUser.timezone)
   const [saving, setSaving] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [changingPassword, setChangingPassword] = useState(false)
 
   const fullName = `${currentUser.name} ${currentUser.last_name}`
   const initials = fullName
@@ -58,6 +62,26 @@ export function ProfileForm({ currentUser }: ProfileFormProps) {
     await refreshUser()
     setSaving(false)
     toast.success("Perfil actualizado correctamente")
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (newPassword !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden")
+      return
+    }
+    setChangingPassword(true)
+    try {
+      await changePassword({ currentPassword, newPassword })
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+      toast.success("Contraseña actualizada correctamente")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al cambiar la contraseña")
+    } finally {
+      setChangingPassword(false)
+    }
   }
 
   return (
@@ -128,6 +152,50 @@ export function ProfileForm({ currentUser }: ProfileFormProps) {
 
             <Button type="submit" disabled={saving} className="mt-2 self-start">
               {saving ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+      <Card className="max-w-lg">
+        <CardHeader>
+          <CardTitle className="text-base">Cambiar contraseña</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="current-password">Contraseña actual</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-password">Nueva contraseña</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                minLength={8}
+                required
+              />
+              <p className="text-xs text-muted-foreground">Mínimo 8 caracteres</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="confirm-password">Confirmar nueva contraseña</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" disabled={changingPassword} className="mt-2 self-start">
+              {changingPassword ? "Guardando..." : "Cambiar contraseña"}
             </Button>
           </form>
         </CardContent>

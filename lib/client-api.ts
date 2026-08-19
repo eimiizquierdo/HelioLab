@@ -61,6 +61,24 @@ export async function getCurrentUser(parameters: {}): Promise<FrontendUser | nul
 }
 
 // Trae readings e highlights de un prototipo para un rango de fechas
+export async function changePassword(parameters: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  const response = await fetch("/api/user/change_password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      current_password: parameters.currentPassword,
+      new_password: parameters.newPassword,
+    }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error ?? "Error al cambiar la contraseña");
+  }
+}
+
 export async function getReadingsForRange(parameters: {
   prototypeId: string;
   startDate: Date;

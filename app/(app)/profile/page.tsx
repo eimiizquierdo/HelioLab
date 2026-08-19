@@ -2,7 +2,7 @@ import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { db } from "@/lib/firebase-admin"
 import { ProfileForm } from "@/components/profile-form"
-import type { UserLocal } from "@/lib/types/frontend-types"
+import type { FrontendUser } from "@/lib/types/frontend-data-model"
 
 export default async function ProfilePage() {
   const cookieStore = await cookies()
@@ -15,7 +15,7 @@ export default async function ProfilePage() {
   if (!userDoc.exists) redirect("/login")
 
   const { hashed_password, ...userLocal } = userDoc.data()!
-  const currentUser = { id: userDoc.id, ...userLocal } as UserLocal
+  const currentUser = { id: userDoc.id, ...userLocal } as FrontendUser
 
   return <ProfileForm currentUser={currentUser} />
 }
