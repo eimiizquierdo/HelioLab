@@ -463,7 +463,9 @@ export async function getPrototypes(parameters: {}): Promise<
   });
 
   if (!res.ok) {
-    throw new Error(`getHighlights failed: ${res.status}`);
+    // Sin prototipos o sin acceso — devolver lista vacía sin romper la página
+    console.warn(`getPrototypes failed: ${res.status}`)
+    return []
   }
 
   const response = await res.json();
