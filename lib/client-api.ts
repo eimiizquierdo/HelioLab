@@ -531,3 +531,43 @@ export async function getPrototypeDataInRange(parameters: {
     })),
   };
 }
+
+// ── Admin: gestión de usuarios ────────────────────────────────────────────────
+
+export async function adminGetUsers(): Promise<{
+  id: string; name: string; last_name: string; email: string;
+  degree: string; role: string; timezone: string; profile_picture: string;
+}[]> {
+  const res = await fetch("/api/admin/users", { method: "GET", credentials: "include" });
+  if (!res.ok) throw new Error("Error al obtener usuarios");
+  const data = await res.json();
+  return data.users;
+}
+
+export async function adminCreateUser(params: {
+  name: string; last_name: string; email: string;
+  degree: string; timezone: string; password: string; role?: string;
+}): Promise<{ id: string }> {
+  const res = await fetch("/api/admin/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Error al crear usuario");
+  }
+  return res.json();
+}
+
+export async function adminDeleteUser(userId: string): Promise<void> {
+  const res = await fetch(`/api/admin/users/${userId}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Error al eliminar usuario");
+  }
+}

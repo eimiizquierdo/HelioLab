@@ -9,11 +9,11 @@ import {
   useCallback,
   type ReactNode,
 } from "react"
-import type { UserLocal } from "./types/frontend-types"
+import type { FrontendUser } from "./types/frontend-data-model"
 import { authenticateUser, getCurrentUser, apiEndpoint } from "./client-api"
 
 interface AuthContextValue {
-  user: UserLocal | null
+  user: FrontendUser | null
   loading: boolean
   login: (email: string, password: string) => Promise<{ error?: string }>
   logout: () => void
@@ -23,7 +23,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserLocal | null>(null)
+  const [user, setUser] = useState<FrontendUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {

@@ -10,7 +10,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { Bell, LogOut, Menu, Sun } from "lucide-react"
+import { Bell, LogOut, Menu, Shield, Sun } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function AppSidebar() {
@@ -92,6 +92,19 @@ export function AppSidebar() {
             </span>
           )}
         </Link>
+
+        {user.role === "admin" && (
+          <Link
+            href="/admin"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
+              pathname === "/admin" && "bg-accent"
+            )}
+          >
+            <Shield className="size-4 text-muted-foreground" />
+            <span className="text-foreground">Administración</span>
+          </Link>
+        )}
 
         <button
           onClick={handleLogout}
