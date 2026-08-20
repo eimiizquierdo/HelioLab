@@ -12,6 +12,7 @@ import { ChatsFeed } from "@/components/chats-feed"
 import { ChartCommentBar } from "@/components/chart-comment-bar"
 import { ConnectionsPanel } from "@/components/connections-panel"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SolarScene } from "@/components/solar-scene"
 
 interface DashboardProps {
@@ -204,6 +205,28 @@ export function Dashboard({
   return (
     <div className="flex gap-8 p-6">
       <div className="flex min-w-0 flex-1 flex-col gap-6">
+        {/* Selector de prototipo */}
+        {count > 0 && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground shrink-0">Prototipo:</span>
+            <Select
+              value={String(activeIndex)}
+              onValueChange={(v) => handleSetActiveIndex(Number(v))}
+            >
+              <SelectTrigger className="w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {prototypes.map((p, i) => (
+                  <SelectItem key={p.id} value={String(i)}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {count === 0 ? (
           <div className="flex h-64 items-center justify-center rounded-lg border border-border bg-card">
             <span className="text-sm text-muted-foreground">No hay prototipos registrados.</span>

@@ -70,13 +70,16 @@ export type PrototypeData = {
 export type FrontendPrototype = {
     id: UtilityReference;
     label: string;
+    name: string;
+    type: "fotovoltaico" | "eolico";
     ownerId: UtilityReference;
     owner: {
         name: string;
         full_name: string;
         profile_picture: Url;
     };
-    /** Configuracion solar del prototipo */
+    viewerIds: string[];
+    /** Configuracion solar del prototipo (solo fotovoltaico) */
     solarConfig?: {
         lat: number;
         lon: number;

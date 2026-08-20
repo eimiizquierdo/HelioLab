@@ -573,3 +573,53 @@ export async function adminDeleteUser(userId: string): Promise<void> {
     throw new Error(data.error ?? "Error al eliminar usuario");
   }
 }
+
+// ── Prototipos ────────────────────────────────────────────────────────────────
+
+export async function createPrototype(params: {
+  name: string
+  label: string
+  code: string
+  type: "fotovoltaico" | "eolico"
+  lat: number
+  lon: number
+  timezone: number
+  beta?: number
+  viewerIds: string[]
+}): Promise<{ id: string }> {
+  const res = await fetch("/api/prototype/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(params),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? "Error al crear prototipo")
+  }
+  return res.json()
+}
+
+export async function updatePrototypeViewers(params: {
+  prototypeId: string
+  viewerIds: string[]
+}): Promise<void> {
+  const res = await fetch(`/api/prototype/${params.prototypeId}/update_viewers`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ viewerIds: params.viewerIds }),
+  })
+  if (!res.ok) throw new Error("Error al actualizar viewers")
+}
+
+export async function searchUsers(query: string): Promise<{
+  id: string; name: string; last_name: string; email: string; degree: string; profile_picture: string
+}[]> {
+  const res = await fetch(`/api/admin/users/search?q=${encodeURIComponent(query)}`, {
+    credentials: "include",
+  })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.users ?? []
+}
