@@ -225,6 +225,15 @@ export function Dashboard({
                 ))}
               </SelectContent>
             </Select>
+            {activePrototype && currentUser.id === activePrototype.ownerId && (
+              <Link
+                href={`/prototype/${activePrototype.id}/settings`}
+                className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Configuración
+              </Link>
+            )}
           </div>
         )}
 
