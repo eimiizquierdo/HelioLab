@@ -549,7 +549,7 @@ export function SolarScene({ selectedDate, defaultConfig, prototypeId, currentUs
 
   if (!defaultConfig) return (
     <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-      Este prototipo no tiene configuracion solar. Contacta al administrador.</div>
+      Este prototipo no tiene configuracion solar.</div>
   )
 
   const inputClass = "w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"

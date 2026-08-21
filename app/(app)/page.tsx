@@ -1,11 +1,9 @@
-'use server'
-
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 import { db } from "@/lib/firebase-admin"
-import { getFeed, getPrototypes } from "@/lib/client-api"
+import { getFeed } from "@/lib/client-api"
+import { getAccessiblePrototypes } from "@/lib/get-accessible-prototypes"
 import type { ChatAsPost, FrontendPrototype, FrontendUser } from "@/lib/types/frontend-data-model"
-import type { PrototypeData } from "@/lib/types/frontend-data-model"
 import { Dashboard } from "@/components/dashboard"
 
 export default async function DashboardPage() {
@@ -24,12 +22,13 @@ export default async function DashboardPage() {
     last_interaction_time: last_interaction_time?.toDate?.()?.toISOString?.() ?? null,
   } as FrontendUser
 
+  // Cargar prototipos directamente desde Firestore (evita perder cookies en fetch server-to-server)
   const [initialPrototypes, initialFeed]: [FrontendPrototype[], ChatAsPost[]] = await Promise.all([
-    getPrototypes({}),
+    getAccessiblePrototypes(currentUser.id, userDoc.data()?.role === "admin"),
     getFeed({ researcherId: currentUser.id }),
   ])
 
-  const initialDataFetch = new Date();
+  const initialDataFetch = new Date()
 
   return (
     <Dashboard
