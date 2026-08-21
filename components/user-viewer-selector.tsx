@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { searchUsers } from "@/lib/client-api"
+import { useState, useCallback, useEffect } from "react"
+import { searchUsers, getUsersByIds } from "@/lib/client-api"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import { X, Search, Loader2 } from "lucide-react"
 
 type UserResult = {
@@ -26,7 +25,30 @@ export function UserViewerSelector({ selectedIds, onChange, excludeIds = [] }: U
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<UserResult[]>([])
   const [loading, setLoading] = useState(false)
-  const [selected, setSelected] = useState<UserResult[]>([])
+  const [loadingSelected, setLoadingSelected] = useState(false)
+  const [userCache, setUserCache] = useState<Record<string, UserResult>>({})
+
+  // Cargar los datos de los usuarios que ya tienen acceso (viewers existentes)
+  useEffect(() => {
+    const missingIds = selectedIds.filter((id) => !userCache[id])
+    if (missingIds.length === 0) return
+    let cancelled = false
+    setLoadingSelected(true)
+    getUsersByIds(missingIds)
+      .then((users) => {
+        if (cancelled) return
+        setUserCache((prev) => {
+          const next = { ...prev }
+          for (const u of users) next[u.id] = u
+          return next
+        })
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSelected(false)
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds])
 
   const handleSearch = useCallback(async (q: string) => {
     setQuery(q)
@@ -35,6 +57,11 @@ export function UserViewerSelector({ selectedIds, onChange, excludeIds = [] }: U
     try {
       const data = await searchUsers(q)
       setResults(data.filter((u) => !excludeIds.includes(u.id) && !selectedIds.includes(u.id)))
+      setUserCache((prev) => {
+        const next = { ...prev }
+        for (const u of data) next[u.id] = u
+        return next
+      })
     } finally {
       setLoading(false)
     }
@@ -42,28 +69,27 @@ export function UserViewerSelector({ selectedIds, onChange, excludeIds = [] }: U
 
   function addUser(user: UserResult) {
     if (selectedIds.includes(user.id)) return
-    const newSelected = [...selected, user]
-    setSelected(newSelected)
+    setUserCache((prev) => ({ ...prev, [user.id]: user }))
     onChange([...selectedIds, user.id])
     setResults([])
     setQuery("")
   }
 
   function removeUser(userId: string) {
-    const newSelected = selected.filter((u) => u.id !== userId)
-    setSelected(newSelected)
     onChange(selectedIds.filter((id) => id !== userId))
   }
 
   const initials = (u: UserResult) =>
     `${u.name[0] ?? ""}${u.last_name[0] ?? ""}`.toUpperCase()
 
+  const selectedUsers = selectedIds.map((id) => userCache[id]).filter(Boolean) as UserResult[]
+
   return (
     <div className="flex flex-col gap-3">
-      {/* Fichas de usuarios seleccionados */}
-      {selected.length > 0 && (
+      {/* Fichas de usuarios con acceso actualmente */}
+      {selectedIds.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {selected.map((u) => (
+          {selectedUsers.map((u) => (
             <div
               key={u.id}
               className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm"
@@ -85,6 +111,12 @@ export function UserViewerSelector({ selectedIds, onChange, excludeIds = [] }: U
               </button>
             </div>
           ))}
+          {loadingSelected && selectedUsers.length < selectedIds.length && (
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Cargando...
+            </div>
+          )}
         </div>
       )}
 

@@ -667,3 +667,18 @@ export async function updatePrototypeInfo(params: {
     throw new Error(data.error ?? "Error al actualizar el prototipo")
   }
 }
+
+export async function getUsersByIds(ids: string[]): Promise<{
+  id: string; name: string; last_name: string; email: string; degree: string; profile_picture: string
+}[]> {
+  if (ids.length === 0) return []
+  const res = await fetch("/api/user/get_by_ids", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ids }),
+  })
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.users ?? []
+}
