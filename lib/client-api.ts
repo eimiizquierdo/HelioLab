@@ -622,3 +622,48 @@ export async function searchUsers(query: string): Promise<{
   const data = await res.json()
   return data.users ?? []
 }
+
+export async function getPrototypeSettings(prototypeId: string): Promise<{
+  id: string
+  name: string
+  label: string
+  type: "fotovoltaico" | "eolico"
+  code: string
+  lat: number | null
+  lon: number | null
+  timezone: number | null
+  beta: number | null
+  viewerIds: string[]
+}> {
+  const res = await fetch(`/api/prototype/${prototypeId}/get_settings`, {
+    method: "POST",
+    credentials: "include",
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? "Error al obtener la configuración")
+  }
+  return res.json()
+}
+
+export async function updatePrototypeInfo(params: {
+  prototypeId: string
+  name: string
+  label: string
+  lat: number
+  lon: number
+  timezone: number
+  beta?: number
+}): Promise<void> {
+  const { prototypeId, ...body } = params
+  const res = await fetch(`/api/prototype/${prototypeId}/update_info`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? "Error al actualizar el prototipo")
+  }
+}

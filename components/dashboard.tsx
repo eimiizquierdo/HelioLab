@@ -11,7 +11,8 @@ import {
 import { ChatsFeed } from "@/components/chats-feed"
 import { ChartCommentBar } from "@/components/chart-comment-bar"
 import { ConnectionsPanel } from "@/components/connections-panel"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Settings } from "lucide-react"
+import Link from "next/link"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SolarScene } from "@/components/solar-scene"
 
