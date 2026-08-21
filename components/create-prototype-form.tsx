@@ -33,12 +33,13 @@ export function CreatePrototypeForm({ currentUserId }: CreatePrototypeFormProps)
   const router = useRouter()
   const [creating, setCreating] = useState(false)
   const [createdId, setCreatedId] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [createdCode, setCreatedCode] = useState<string | null>(null)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [copiedCode, setCopiedCode] = useState(false)
 
   // Campos del formulario
   const [name, setName] = useState("")
   const [label, setLabel] = useState("")
-  const [code, setCode] = useState("")
   const [type, setType] = useState<"fotovoltaico" | "eolico">("fotovoltaico")
   const [lat, setLat] = useState("")
   const [lon, setLon] = useState("")
@@ -52,7 +53,7 @@ export function CreatePrototypeForm({ currentUserId }: CreatePrototypeFormProps)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name || !label || !code || !lat || !lon) {
+    if (!name || !label || !lat || !lon) {
       toast.error("Por favor completa todos los campos requeridos")
       return
     }
@@ -61,7 +62,6 @@ export function CreatePrototypeForm({ currentUserId }: CreatePrototypeFormProps)
       const result = await createPrototype({
         name,
         label,
-        code,
         type,
         lat: parseFloat(lat),
         lon: parseFloat(lon),
@@ -70,6 +70,7 @@ export function CreatePrototypeForm({ currentUserId }: CreatePrototypeFormProps)
         viewerIds,
       })
       setCreatedId(result.id)
+      setCreatedCode(result.code)
       toast.success("Prototipo creado correctamente")
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al crear prototipo")
@@ -78,21 +79,28 @@ export function CreatePrototypeForm({ currentUserId }: CreatePrototypeFormProps)
     }
   }
 
-  function handleCopy() {
+  function handleCopyUrl() {
     if (!saveUrl) return
     navigator.clipboard.writeText(saveUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setCopiedUrl(true)
+    setTimeout(() => setCopiedUrl(false), 2000)
   }
 
-  // Pantalla de éxito con la URL
-  if (createdId && saveUrl) {
+  function handleCopyCode() {
+    if (!createdCode) return
+    navigator.clipboard.writeText(createdCode)
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
+  }
+
+  // Pantalla de éxito con la URL y el código
+  if (createdId && saveUrl && createdCode) {
     return (
       <div className="flex flex-col gap-6 p-6 max-w-xl">
         <div className="flex flex-col gap-1">
           <h1 className="text-xl font-bold text-foreground">¡Prototipo creado!</h1>
           <p className="text-sm text-muted-foreground">
-            Copia la URL de guardado para configurar tu dispositivo.
+            Copia la URL y el código para configurar tu dispositivo.
           </p>
         </div>
 
@@ -110,14 +118,37 @@ export function CreatePrototypeForm({ currentUserId }: CreatePrototypeFormProps)
               variant="outline"
               size="sm"
               className="self-start gap-2"
-              onClick={handleCopy}
+              onClick={handleCopyUrl}
             >
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copiado" : "Copiar URL"}
+              {copiedUrl ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              {copiedUrl ? "Copiado" : "Copiar URL"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/20">
+          <CardHeader>
+            <CardTitle className="text-sm text-green-700 dark:text-green-400">
+              Código de autorización
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <code className="text-xs break-all rounded bg-background px-3 py-2 border text-foreground">
+              {createdCode}
+            </code>
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-start gap-2"
+              onClick={handleCopyCode}
+            >
+              {copiedCode ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              {copiedCode ? "Copiado" : "Copiar código"}
             </Button>
             <p className="text-xs text-muted-foreground">
-              Usa esta URL en tu ESP32 o dispositivo para enviar lecturas al sistema. 
-              Guárdala en un lugar seguro.
+              Tu dispositivo (ESP32 u otro) debe enviar este código junto con cada lectura, en el
+              cuerpo JSON del POST a la URL de arriba: {"{"} current, voltage, irradiance, code {"}"}.
+              Guárdalo en un lugar seguro.
             </p>
           </CardContent>
         </Card>
@@ -163,12 +194,6 @@ export function CreatePrototypeForm({ currentUserId }: CreatePrototypeFormProps)
             <Label htmlFor="label">Etiqueta visible</Label>
             <Input id="label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ej: Prototipo México 1" required />
           </div>
-        </div>
-
-        {/* Código */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="code">Código</Label>
-          <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ej: CPV-001" required />
         </div>
 
         {/* Coordenadas */}

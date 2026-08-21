@@ -579,14 +579,13 @@ export async function adminDeleteUser(userId: string): Promise<void> {
 export async function createPrototype(params: {
   name: string
   label: string
-  code: string
   type: "fotovoltaico" | "eolico"
   lat: number
   lon: number
   timezone: number
   beta?: number
   viewerIds: string[]
-}): Promise<{ id: string }> {
+}): Promise<{ id: string; code: string }> {
   const res = await fetch("/api/prototype/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
