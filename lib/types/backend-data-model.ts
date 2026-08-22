@@ -110,9 +110,12 @@ export interface FollowedChat {
 
 export interface Notification {
   id: Id;
-  type: string;
+  type: "new_comment_followed" | "new_comment_own_prototype" | "added_viewer" | "mention" | string;
   has_been_read: boolean;
-  followed_chat?: UtilityReference;
+  text: string;
+  chat?: UtilityReference | null;
+  prototype?: UtilityReference | null;
+  followed_chat?: UtilityReference | null;
   user: UtilityReference;
   creation_date: UtilityTimestamp;
 }

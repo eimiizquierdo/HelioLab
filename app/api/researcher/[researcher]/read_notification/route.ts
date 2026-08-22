@@ -6,7 +6,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: { researcher: string } }
 ) {
-  const { researcher } = params;
+  const { researcher } = await params;
   const { notification } = await req.json();
 
   if (!notification) {

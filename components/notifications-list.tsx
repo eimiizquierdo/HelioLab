@@ -8,21 +8,23 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
 } from "@/lib/client-api"
-import type { Notification } from "@/lib/types/backend-types"
+import type { Notification } from "@/lib/types/backend-data-model"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { AtSign, CheckCheck, MessageCircle, Reply } from "lucide-react"
+import { AtSign, CheckCheck, MessageCircle, UserPlus } from "lucide-react"
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
-  new_comment: MessageCircle,
+  new_comment_followed: MessageCircle,
+  new_comment_own_prototype: MessageCircle,
+  added_viewer: UserPlus,
   mention: AtSign,
-  new_reply: Reply,
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  new_comment: "Nuevo comentario",
-  mention: "Mencion",
-  new_reply: "Nueva respuesta",
+  new_comment_followed: "Nuevo comentario",
+  new_comment_own_prototype: "Comentario en tu prototipo",
+  added_viewer: "Nuevo acceso",
+  mention: "Mención",
 }
 
 function relativeTime(isoString: string): string {
@@ -47,7 +49,7 @@ export function NotificationsList() {
 
   useEffect(() => {
     if (user) {
-      getNotifications(user.id).then((notifs) => {
+      getNotifications({ userId: user.id }).then((notifs) => {
         setNotifications(
           notifs.sort(
             (a, b) =>
@@ -60,19 +62,21 @@ export function NotificationsList() {
   }, [user])
 
   async function handleClick(notif: Notification) {
+    if (!user) return
     if (!notif.has_been_read) {
-      await markNotificationRead(notif.id)
+      await markNotificationRead({ userId: user.id, notificationId: notif.id })
       setNotifications((prev) =>
         prev.map((n) => (n.id === notif.id ? { ...n, has_been_read: true } : n))
       )
     }
-    if (notif.saved_chat) {
-      router.push(`/chat/${notif.saved_chat}`)
+    if (notif.chat) {
+      router.push(`/chat/${notif.chat}`)
     }
   }
 
   async function handleMarkAllRead() {
-    await markAllNotificationsRead()
+    if (!user) return
+    await markAllNotificationsRead(user.id)
     setNotifications((prev) =>
       prev.map((n) => ({ ...n, has_been_read: true }))
     )
@@ -126,7 +130,7 @@ export function NotificationsList() {
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-xs font-medium text-muted-foreground">
-                    {TYPE_LABELS[notif.type]}
+                    {TYPE_LABELS[notif.type] ?? "Notificación"}
                   </span>
                   <p
                     className={cn(
@@ -140,7 +144,7 @@ export function NotificationsList() {
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {relativeTime(notif.creation_date)}
+                  {relativeTime(notif.creation_date as unknown as string)}
                 </span>
                 {!notif.has_been_read && (
                   <div className="mt-1.5 size-2 shrink-0 rounded-full bg-chart-1" />

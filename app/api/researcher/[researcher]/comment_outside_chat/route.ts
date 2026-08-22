@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as admin from "firebase-admin";
 import { db } from "@/lib/firebase-admin";
+import { extractMentionedUserRefs } from "@/lib/mentions";
 
 // POST /api/researcher/[researcher]/comment_outside_chat
 export async function POST(
@@ -24,6 +25,7 @@ export async function POST(
     return NextResponse.json({ error: "Researcher not found" }, { status: 404 });
   }
   const researcherData = researcherSnap.data()!;
+  const fullName = `${researcherData.name} ${researcherData.last_name}`;
 
   // --- Step 1: Create the Chat ---
   const now = admin.firestore.Timestamp.now();
@@ -38,12 +40,15 @@ export async function POST(
 
   // Optionally attach prototype readings snapshot to the chat
   let readingsToClone: Record<string, unknown>[] = [];
+  let prototypeRef: admin.firestore.DocumentReference | null = null;
+  let prototypeData: FirebaseFirestore.DocumentData | null = null;
   if (prototype && start_date && end_date) {
-    const prototypeRef = db.collection("Prototype").doc(prototype);
+    prototypeRef = db.collection("Prototype").doc(prototype);
     const protoSnap = await prototypeRef.get();
     if (!protoSnap.exists) {
       return NextResponse.json({ error: "Prototype not found" }, { status: 404 });
     }
+    prototypeData = protoSnap.data()!;
 
     const startTs = admin.firestore.Timestamp.fromDate(new Date(start_date));
     const endTs = admin.firestore.Timestamp.fromDate(new Date(end_date));
@@ -76,7 +81,7 @@ export async function POST(
 
   const commentData: Record<string, unknown> = {
     chat: chatDocRef,
-    full_name: `${researcherData.name} ${researcherData.last_name}`,
+    full_name: fullName,
     degree: researcherData.degree,
     creation_date: now,
     author: researcherRef,
@@ -99,6 +104,36 @@ export async function POST(
     last_message_seen_time: now,
     silenced: false,
   });
+
+  // --- Step 5: Notificar al dueño del prototipo (si no es quien comenta) ---
+  if (prototypeRef && prototypeData) {
+    const ownerRef = prototypeData.owner as admin.firestore.DocumentReference | undefined;
+    if (ownerRef && ownerRef.id !== researcher) {
+      const label = prototypeData.label ?? prototypeData.name ?? "tu prototipo";
+      await db.collection("Notification").add({
+        type: "new_comment_own_prototype",
+        has_been_read: false,
+        text: `${fullName} comentó en tu prototipo "${label}"`,
+        chat: chatDocRef,
+        prototype: prototypeRef,
+        user: ownerRef,
+        creation_date: now,
+      });
+    }
+  }
+
+  // --- Step 6: Notificar menciones (@Nombre Apellido) dentro del texto ---
+  const mentionedRefs = await extractMentionedUserRefs(comment, researcher);
+  for (const userRef of mentionedRefs) {
+    await db.collection("Notification").add({
+      type: "mention",
+      has_been_read: false,
+      text: `${fullName} te mencionó en un comentario`,
+      chat: chatDocRef,
+      user: userRef,
+      creation_date: now,
+    });
+  }
 
   // Return the full Comment so the client can render it immediately
   return NextResponse.json({

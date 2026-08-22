@@ -232,8 +232,13 @@ export async function unfollowChat(
     throw new Error(`Failed to unfollow chat: ${response.status}`);
 }
 
-export async function markAllNotificationsRead(): Promise<void> {
-  // notifications = notifications.map((n) => ({ ...n, has_been_read: true }));
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const response = await fetch(
+    apiEndpoint(`/api/researcher/${userId}/read_all_notifications`),
+    { method: "POST" },
+  );
+  if (!response.ok)
+    throw new Error(`Failed to mark all notifications read: ${response.status}`);
 }
 
 export async function authenticateUser(parameters: {

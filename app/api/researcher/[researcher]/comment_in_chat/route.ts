@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as admin from "firebase-admin";
 import { db } from "@/lib/firebase-admin";
-
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+import { extractMentionedUserRefs } from "@/lib/mentions";
 
 // POST /api/researcher/[researcher]/comment_in_chat
 export async function POST(
@@ -29,6 +28,7 @@ export async function POST(
     return NextResponse.json({ error: "Researcher not found" }, { status: 404 });
   }
   const researcherData = researcherSnap.data()!;
+  const fullName = `${researcherData.name} ${researcherData.last_name}`;
 
   // Fetch the chat
   const chatRef = db.collection("Chat").doc(chat);
@@ -37,11 +37,8 @@ export async function POST(
     return NextResponse.json({ error: "Chat not found" }, { status: 404 });
   }
   const chatData = chatSnap.data()!;
-  const previousLastMessageTime: admin.firestore.Timestamp | null =
-    chatData.last_message_time ?? null;
 
   const now = admin.firestore.Timestamp.now();
-  const fullName = `${researcherData.name} ${researcherData.last_name}`;
 
   // --- Step 1: Create the Comment ---
   const commentRef = await db.collection("Comment").add({
@@ -80,45 +77,42 @@ export async function POST(
     });
   }
 
-  // --- Step 4: Check if we need to send "resumed-activity" notifications ---
-  if (
-    previousLastMessageTime !== null &&
-    now.toMillis() - previousLastMessageTime.toMillis() >= THREE_DAYS_MS
-  ) {
-    // Build unique set of users to notify: commenters + followers
-    const commentersRefs: admin.firestore.DocumentReference[] =
-      chatData.commenters ?? [];
-    const followersRefs: admin.firestore.DocumentReference[] =
-      chatData.followers ?? [];
+  // --- Step 4: Notificar a comentaristas y seguidores del chat (menos el autor) ---
+  const commentersRefs: admin.firestore.DocumentReference[] =
+    chatData.commenters ?? [];
+  const followersRefs: admin.firestore.DocumentReference[] =
+    chatData.followers ?? [];
 
-    const allRefs = new Map<string, admin.firestore.DocumentReference>();
-    for (const ref of [...commentersRefs, ...followersRefs]) {
-      if (!allRefs.has(ref.id)) allRefs.set(ref.id, ref);
-    }
-
-    // For each user, find their FollowedChat for this chat to link in the notification
-    for (const userRef of allRefs.values()) {
-      const userFollowedSnap = await db
-        .collection("FollowedChat")
-        .where("owner", "==", userRef)
-        .where("chat", "==", chatRef)
-        .get();
-
-      const followedChatRef = userFollowedSnap.empty
-        ? null
-        : userFollowedSnap.docs[0].ref;
-
-      await db.collection("Notification").add({
-        type: "resumed-activity",
-        has_been_read: false,
-        followed_chat: followedChatRef,
-        user: userRef,
-        creation_date: now,
-      });
-    }
+  const notifyRefs = new Map<string, admin.firestore.DocumentReference>();
+  for (const ref of [...commentersRefs, ...followersRefs]) {
+    if (ref.id !== researcher) notifyRefs.set(ref.id, ref);
   }
 
-  // --- Step 5: Update last_message_time on the chat ---
+  for (const userRef of notifyRefs.values()) {
+    await db.collection("Notification").add({
+      type: "new_comment_followed",
+      has_been_read: false,
+      text: `${fullName} comentó en un chat que sigues`,
+      chat: chatRef,
+      user: userRef,
+      creation_date: now,
+    });
+  }
+
+  // --- Step 5: Notificar menciones (@Nombre Apellido) dentro del texto ---
+  const mentionedRefs = await extractMentionedUserRefs(comment, researcher);
+  for (const userRef of mentionedRefs) {
+    await db.collection("Notification").add({
+      type: "mention",
+      has_been_read: false,
+      text: `${fullName} te mencionó en un comentario`,
+      chat: chatRef,
+      user: userRef,
+      creation_date: now,
+    });
+  }
+
+  // --- Step 6: Update last_message_time on the chat ---
   await chatRef.update({ last_message_time: now });
 
   return NextResponse.json({ comment_id: commentRef.id }, { status: 201 });

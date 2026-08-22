@@ -36,9 +36,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Campos invalidos" }, { status: 400 });
   }
 
-  const viewerRefs = (Array.isArray(viewerIds) ? viewerIds : [] as string[]).map(
-    (id: string) => db.collection("User").doc(id),
-  );
+  const initialViewerIds: string[] = Array.isArray(viewerIds) ? viewerIds : [];
+  const viewerRefs = initialViewerIds.map((id: string) => db.collection("User").doc(id));
 
   // Generar un código único para autenticar el guardado de lecturas
   let code = generateCode(type);
@@ -65,6 +64,24 @@ export async function POST(req: NextRequest) {
   }
 
   const created = await db.collection("Prototype").add(newPrototype);
+
+  // Notificar a los viewers agregados desde la creación
+  if (initialViewerIds.length > 0) {
+    const grantorName = `${userDoc.data()?.name ?? ""} ${userDoc.data()?.last_name ?? ""}`.trim();
+    const now = new Date();
+
+    for (const viewerId of initialViewerIds) {
+      if (viewerId === userId) continue;
+      await db.collection("Notification").add({
+        type: "added_viewer",
+        has_been_read: false,
+        text: `${grantorName} te dio acceso al prototipo "${label}"`,
+        prototype: created,
+        user: db.collection("User").doc(viewerId),
+        creation_date: now,
+      });
+    }
+  }
 
   return NextResponse.json({ id: created.id, code }, { status: 201 });
 }
