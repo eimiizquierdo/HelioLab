@@ -15,7 +15,11 @@ export async function PATCH(
 
     const { prototype: protoId } = await params;
     const body = await req.json().catch(() => ({}));
-    const viewerIds = Array.isArray(body?.viewerIds) ? body.viewerIds : [];
+    const rawViewerIds = Array.isArray(body?.viewerIds) ? body.viewerIds : [];
+    // Descartar cualquier valor vacío/no-string para no romper Firestore .doc()
+    const newViewerIds: string[] = rawViewerIds.filter(
+      (id: unknown): id is string => typeof id === "string" && id.trim().length > 0,
+    );
 
     const protoDoc = await db.collection("Prototype").doc(protoId).get();
     if (!protoDoc.exists) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
@@ -32,13 +36,12 @@ export async function PATCH(
       return NextResponse.json({ error: "Sin permisos" }, { status: 403 });
     }
 
-    const newViewerIds: string[] = viewerIds;
     const previousViewerIds = (
       (protoData.viewers ?? []) as admin.firestore.DocumentReference[]
     ).map((v) => v.id);
     const addedViewerIds = newViewerIds.filter((id) => !previousViewerIds.includes(id));
 
-    const viewerRefs = newViewerIds.map((id: string) => db.collection("User").doc(id));
+    const viewerRefs = newViewerIds.map((id) => db.collection("User").doc(id));
     await db.collection("Prototype").doc(protoId).update({ viewers: viewerRefs });
 
     // Notificar a los usuarios recién agregados como viewers
