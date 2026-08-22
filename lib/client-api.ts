@@ -615,7 +615,10 @@ export async function updatePrototypeViewers(params: {
     credentials: "include",
     body: JSON.stringify({ viewerIds: params.viewerIds }),
   })
-  if (!res.ok) throw new Error("Error al actualizar viewers")
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? "Error al actualizar viewers")
+  }
 }
 
 export async function searchUsers(query: string): Promise<{
