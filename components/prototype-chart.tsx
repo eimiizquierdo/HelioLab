@@ -386,6 +386,7 @@ export const PrototypeChart = forwardRef<
 
     function onMouseDown(e: MouseEvent) {
       if (!activeLabelRef.current) return;
+      e.preventDefault();
       isDraggingRef.current = true;
       dragStartXRef.current = e.clientX - container!.getBoundingClientRect().left;
       dragStartLabelRef.current = activeLabelRef.current;
@@ -439,15 +440,21 @@ export const PrototypeChart = forwardRef<
       dragCurrentLabelRef.current = null;
     }
 
+    function onDragStart(e: DragEvent) {
+      e.preventDefault();
+    }
+
     container.addEventListener("mousedown", onMouseDown);
     container.addEventListener("mousemove", onMouseMove);
     container.addEventListener("mouseup", onMouseUp);
     container.addEventListener("mouseleave", onMouseLeave);
+    container.addEventListener("dragstart", onDragStart);
     return () => {
       container.removeEventListener("mousedown", onMouseDown);
       container.removeEventListener("mousemove", onMouseMove);
       container.removeEventListener("mouseup", onMouseUp);
       container.removeEventListener("mouseleave", onMouseLeave);
+      container.removeEventListener("dragstart", onDragStart);
     };
   }, [redrawCanvas]);
 
