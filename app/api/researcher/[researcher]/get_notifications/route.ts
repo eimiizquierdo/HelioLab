@@ -28,8 +28,14 @@ export async function POST(
         ...data,
         creation_date: data.creation_date?.toDate?.()?.toISOString?.() ?? data.creation_date,
         read_date: data.read_date?.toDate?.()?.toISOString?.() ?? data.read_date ?? null,
-        // Convertir referencias a IDs
+        // Convertir referencias a IDs (nunca dejar un DocumentReference crudo en la respuesta)
         user: typeof data.user?.id === "string" ? data.user.id : data.user,
+        chat: data.chat
+          ? (typeof data.chat?.id === "string" ? data.chat.id : data.chat)
+          : null,
+        prototype: data.prototype
+          ? (typeof data.prototype?.id === "string" ? data.prototype.id : data.prototype)
+          : null,
         followed_chat: data.followed_chat
           ? (typeof data.followed_chat?.id === "string" ? data.followed_chat.id : data.followed_chat)
           : null,
