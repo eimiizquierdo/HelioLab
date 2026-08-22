@@ -15,6 +15,7 @@ export type FrontendUser = Omit<User, "hashed_password">;
 
 export type ChatAsPost = {
     chat: UtilityReference;
+    prototype: UtilityReference | null;
     creation_date: Date;
     creator: {
         name: string;

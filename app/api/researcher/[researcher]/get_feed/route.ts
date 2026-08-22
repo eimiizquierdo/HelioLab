@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as admin from "firebase-admin";
 import { db } from "@/lib/firebase-admin";
+import { assertPrototypeAccess } from "@/lib/get-accessible-prototypes";
 
 const CHATS_PER_BATCH = parseInt(process.env.CHATS_PER_BATCH_OF_FEED ?? "20");
 
@@ -10,7 +11,7 @@ export async function POST(
   { params }: { params: { researcher: string } }
 ) {
   const { researcher } = await params;
-  const { latest_chat_id } = await req.json();
+  const { latest_chat_id, prototype_id } = await req.json();
 
   const researcherRef = db.collection("User").doc(researcher);
   const researcherSnap = await researcherRef.get();
@@ -18,10 +19,25 @@ export async function POST(
     return NextResponse.json({ error: "Researcher not found" }, { status: 404 });
   }
 
-  // ── 1. Fetch the raw chat batch ──────────────────────────────────────────
+  if (!prototype_id) {
+    return NextResponse.json({ chats: [] }, { status: 200 });
+  }
+
+  const access = await assertPrototypeAccess(researcher, prototype_id);
+  if (!access.exists) {
+    return NextResponse.json({ error: "Prototype not found" }, { status: 404 });
+  }
+  if (!access.allowed) {
+    return NextResponse.json({ error: "Sin permiso" }, { status: 403 });
+  }
+
+  const prototypeRef = db.collection("Prototype").doc(prototype_id);
+
+  // ── 1. Fetch the raw chat batch, filtrado por prototipo ──────────────────
 
   let query = db
     .collection("Chat")
+    .where("prototype", "==", prototypeRef)
     .orderBy("creation_date", "asc") as admin.firestore.Query;
 
   if (latest_chat_id) {
@@ -56,7 +72,7 @@ export async function POST(
       const chat = chatDoc.data();
 
       const creatorRef = chat.creator as admin.firestore.DocumentReference;
-      const prototypeRef = chat.prototype as
+      const chatPrototypeRef = chat.prototype as
         | admin.firestore.DocumentReference
         | undefined;
       const firstCommentRef = chat.first_comment as admin.firestore.DocumentReference;
@@ -64,7 +80,7 @@ export async function POST(
       const [creatorSnap, prototypeSnap, readingsSnap, firstCommentSnap] =
         await Promise.all([
           creatorRef.get(),
-          prototypeRef ? prototypeRef.get() : Promise.resolve(null),
+          chatPrototypeRef ? chatPrototypeRef.get() : Promise.resolve(null),
           chatDoc.ref.collection("readings").get(),
           firstCommentRef.get(),
         ]);
@@ -84,6 +100,7 @@ export async function POST(
 
       return {
         chat: chatDoc.id,
+        prototype: chatPrototypeRef?.id ?? null,
         creation_date: (chat.creation_date as admin.firestore.Timestamp)
           .toDate()
           .toISOString(),

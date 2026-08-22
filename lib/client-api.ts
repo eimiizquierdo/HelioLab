@@ -398,16 +398,17 @@ export async function addComment(parameters: {
 
 export async function getFeed(parameters: {
   researcherId: string;
+  prototypeId: string;
   latestChatId?: string;
 }): Promise<ChatAsPost[]> {
-  const { researcherId, latestChatId } = parameters;
+  const { researcherId, prototypeId, latestChatId } = parameters;
 
   const res = await fetch(
     apiEndpoint(`/api/researcher/${researcherId}/get_feed`),
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ latest_chat_id: latestChatId ?? null }),
+      body: JSON.stringify({ prototype_id: prototypeId, latest_chat_id: latestChatId ?? null }),
     },
   );
 

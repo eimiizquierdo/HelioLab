@@ -79,14 +79,20 @@ export function Dashboard({
   }, [])
 
   // Refresca el feed de comentarios
-  const refreshFeed = useCallback(async () => {
+    const refreshFeed = useCallback(async () => {
+    if (!activePrototype) return
     try {
-      const updatedFeed = await getFeed({ researcherId: currentUser.id })
+      const updatedFeed = await getFeed({ researcherId: currentUser.id, prototypeId: activePrototype.id })
       setFeed(updatedFeed)
     } catch (error) {
       console.error("Failed to load feed:", error)
     }
-  }, [currentUser.id])
+  }, [currentUser.id, activePrototype?.id])
+
+  // Recargar el feed cada vez que cambias de prototipo en el selector
+  useEffect(() => {
+    refreshFeed()
+  }, [refreshFeed])
 
   const activeDomain = useMemo<[number, number] | undefined>(() => {
     if (!activePrototype) return undefined

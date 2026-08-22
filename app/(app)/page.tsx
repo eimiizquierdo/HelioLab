@@ -23,10 +23,13 @@ export default async function DashboardPage() {
   } as FrontendUser
 
   // Cargar prototipos directamente desde Firestore (evita perder cookies en fetch server-to-server)
-  const [initialPrototypes, initialFeed]: [FrontendPrototype[], ChatAsPost[]] = await Promise.all([
-    getAccessiblePrototypes(currentUser.id, userDoc.data()?.role === "admin"),
-    getFeed({ researcherId: currentUser.id }),
-  ])
+    const initialPrototypes: FrontendPrototype[] = await getAccessiblePrototypes(
+    currentUser.id,
+    userDoc.data()?.role === "admin",
+  )
+  const initialFeed: ChatAsPost[] = initialPrototypes.length > 0
+    ? await getFeed({ researcherId: currentUser.id, prototypeId: initialPrototypes[0].id })
+    : []
 
   const initialDataFetch = new Date()
 
